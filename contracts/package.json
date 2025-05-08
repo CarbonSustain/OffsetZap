@@ -1,0 +1,11 @@
+{
+  "name": "offsetzap-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "hardhat": "^2.20.2",
+    "@nomicfoundation/hardhat-toolbox": "^2.0.0",
+    "ethers": "^5.7.2"
+  }
+}
+
