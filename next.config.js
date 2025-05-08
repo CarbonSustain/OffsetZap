@@ -1,9 +1,7 @@
 // next.config.js
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
-  reactStrictMode: true,
+  output: "export",
   experimental: {
     serverActions: true,
   },
