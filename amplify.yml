@@ -1,4 +1,3 @@
-# amplify.yml
 version: 1
 frontend:
   phases:
@@ -8,10 +7,13 @@ frontend:
     build:
       commands:
         - npm run build
+    start:
+      commands:
+        - npm run start
   artifacts:
     baseDirectory: .next
     files:
-      - '**/*'
+      - "**/*"
   cache:
     paths:
       - node_modules/**/*
