@@ -1,8 +1,12 @@
+// next.config.js
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  distDir: 'dist'
+  output: "standalone",
+  reactStrictMode: true,
+  experimental: {
+    serverActions: true,
+  },
 };
 
 module.exports = nextConfig;
-
