@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import CoinbaseWalletSDK from "@coinbase/wallet-sdk";
 import { ethers } from "ethers";
 
