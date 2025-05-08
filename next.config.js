@@ -1,9 +1,9 @@
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
+  output: "standalone", // Important for Amplify support
   experimental: {
-    serverActions: true,
+    serverActions: false, // Avoid breaking "static export"
   },
 };
 
