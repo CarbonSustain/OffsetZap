@@ -2,6 +2,7 @@
 
 Solution: CarbonSustain builds OffsetZap, an onchain carbon offset app where users delegate a Smart Wallet Sub Account to CarbonSustain, with Spend Limits on Base Sepolia. Once configured, users can:
 
+
 Automatically offset micro-emissions (e.g., 0.005 ETH = 5 kg CO₂e) Send gift cards via Evrlink that auto-offset without prompts Subscribe to "climate auto-pilot" for weekly emissions cleanup All without any further wallet popups or gas worries.
 
 💸 How It Works (UX + Tech Stack)
