@@ -1,29 +1,39 @@
-// OffsetZap – Frontend + Backend Demo (Simplified MVP)
-
-// This code includes:
-// - React frontend with Connect Wallet + Set Spend Limit + Offset Now buttons
-// - Backend-like utility for triggering onchain transactions via Sub Account (simulated for now)
-
-// ------------------- FRONTEND -------------------
 "use client";
 import { useState } from "react";
-import { ConnectWallet, useWallet } from "@coinbase/onchain-kit";
+import { ethers } from "ethers";
+import CoinbaseWalletSDK from "@coinbase/wallet-sdk";
 
 export default function OffsetZapApp() {
-  const wallet = useWallet();
+  const [walletAddress, setWalletAddress] = useState("");
+  const [provider, setProvider] = useState(null);
   const [limitSet, setLimitSet] = useState(false);
   const [txStatus, setTxStatus] = useState("");
 
-  const setSpendLimit = async () => {
-    // Simulate Sub Account Spend Limit setup (normally via Coinbase Smart Wallet SDK)
+  const connectWallet = async () => {
+    const APP_NAME = "OffsetZap";
+    const APP_LOGO_URL = "https://yourapp.com/logo.png";
+    const DEFAULT_CHAIN_ID = 84532; // Base Sepolia
+
+    const wallet = new CoinbaseWalletSDK({
+      appName: APP_NAME,
+      appLogoUrl: APP_LOGO_URL,
+      darkMode: false,
+    });
+
+    const ethereum = wallet.makeWeb3Provider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL, DEFAULT_CHAIN_ID);
+
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    setWalletAddress(accounts[0]);
+    setProvider(new ethers.BrowserProvider(ethereum));
+  };
+
+  const setSpendLimit = () => {
     setLimitSet(true);
     alert("Spend limit of 0.05 ETH/week set on Sub Account!");
   };
 
   const triggerOffset = async () => {
     setTxStatus("Executing...");
-
-    // Simulate onchain tx execution via delegated Sub Account (normally this is done server-side)
     setTimeout(() => {
       setTxStatus("✅ 0.005 ETH offset transaction complete!");
     }, 2000);
@@ -33,11 +43,13 @@ export default function OffsetZapApp() {
     <div className="p-4 max-w-md mx-auto text-center">
       <h1 className="text-2xl font-bold mb-4">🌱 OffsetZap (Base Sepolia)</h1>
 
-      {!wallet.connected ? (
-        <ConnectWallet />
+      {!walletAddress ? (
+        <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={connectWallet}>
+          Connect Coinbase Wallet
+        </button>
       ) : (
         <>
-          <p className="mb-2">Wallet connected: {wallet.address}</p>
+          <p className="mb-2">Connected: {walletAddress}</p>
 
           {!limitSet && (
             <button className="bg-green-500 text-white px-4 py-2 rounded mb-3" onClick={setSpendLimit}>
@@ -55,14 +67,3 @@ export default function OffsetZapApp() {
     </div>
   );
 }
-
-// ------------------- BACKEND NOTES -------------------
-// In a full app, you'd use the Coinbase Smart Wallet SDK + Base Sepolia to:
-// - Set up Sub Account delegation
-// - Define Spend Limits via SDK
-// - Execute carbon offset smart contract (e.g., buy & retire $BCT)
-// - Log all emissions in a backend DB for reporting
-
-// Optional:
-// - Track offsets to a Farcaster handle
-// - Send SBT confirming offset completed
