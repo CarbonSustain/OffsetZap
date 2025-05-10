@@ -1,15 +1,13 @@
-require("@nomiclabs/hardhat-ethers");
+require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config();
 
 module.exports = {
   solidity: "0.8.18",
   networks: {
     base: {
-      url: "https://base-goerli.blockpi.network/v1/rpc/public",
+      url: process.env.BASE_SEPOLIA_RPC_URL,
       accounts: [process.env.PRIVATE_KEY],
-    },
-    polygon: {
-      url: process.env.ALCHEMY_API,
-      accounts: [process.env.PRIVATE_KEY],
+      chainId: 84532
     },
   },
 };

@@ -1,12 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
 
+/** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.20",
-  networks: {
-    base_sepolia: {
-      url: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL, // e.g., from Alchemy or Infura
-      accounts: [process.env.PRIVATE_KEY], // from MetaMask or Smart Wallet
-    },
-  },
+  solidity: "0.8.28",
 };

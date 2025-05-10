@@ -6,25 +6,47 @@ interface IERC20 {
     function approve(address spender, uint amount) external returns (bool);
 }
 
+interface IKlimaRetire {
+    function retireCarbon(
+        address sourceToken,
+        uint256 amount,
+        address beneficiaryAddress,
+        string calldata beneficiaryName,
+        string calldata retirementMessage
+    ) external;
+}
+
 contract CarbonOffset {
     address public owner;
-    IERC20 public bct; // Toucan Base Carbon Tonne (BCT) token
+    IERC20 public bct;
+    IKlimaRetire public klimaRetireContract;
 
-    address public klimaTreasury = 0x6bD8198249Ec4731b9fCD0aDFd4C78d9E6a2E74E; // Placeholder
-
-    constructor(address _bct) {
+    constructor(address _bct, address _klimaRetire) {
         owner = msg.sender;
         bct = IERC20(_bct);
+        klimaRetireContract = IKlimaRetire(_klimaRetire);
     }
 
-    function offset(uint256 amount) external {
-        // User must approve BCT transfer first
+    function offset(
+        uint256 amount,
+        string calldata beneficiaryName,
+        string calldata message
+    ) external {
+        require(amount > 0, "Amount must be > 0");
+
+        // Pull BCT from user
         require(bct.transferFrom(msg.sender, address(this), amount), "Transfer failed");
 
-        // Approve KlimaDAO retire address to use BCT
-        require(bct.approve(klimaTreasury, amount), "Approve failed");
+        // Approve Klima's contract to spend BCT
+        require(bct.approve(address(klimaRetireContract), amount), "Approval failed");
 
-        // Now you would call KlimaDAO’s retire function, off-chain or via smart contract (API or contract dependent)
-        // This is where Klima’s retirement functionality would be hooked in.
+        // Call Klima’s on-chain retirement
+        klimaRetireContract.retireCarbon(
+            address(bct),
+            amount,
+            msg.sender, // you can customize this
+            beneficiaryName,
+            message
+        );
     }
 }
