@@ -1,14 +1,26 @@
 'use client'
- 
+
 import { parseEther } from 'viem'
 import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignMessage } from 'wagmi'
- 
+import { useRouter } from 'next/navigation';  
+import { useEffect } from 'react';
+
 function App() {
   const account = useAccount()
+  const router = useRouter() 
+  useEffect(() => {
+    //console.log(router.pathname); // Now that the component is mounted, you can safely use the router
+  }, [router]);
+
   const { connectors, connect, status, error } = useConnect()
   const { disconnect } = useDisconnect()
   const { sendTransactionAsync, data } = useSendTransaction()
-  const { signMessage, data: signData } = useSignMessage()
+  const { signMessage, data: signData } = useSignMessage()  // Function to navigate to the new page
+  
+  const navigateToCarbonOffsetZap = () => {
+    router.push('/carbon-offset-zap');  // Path to your new page
+  };
+  
   return (
     <>
       <div>
@@ -63,6 +75,12 @@ function App() {
         </button>
         <div>{signData}</div>
       </div>
+      
+      <div>
+        <h2>Carbon Offset Zap</h2>
+        <button onClick={navigateToCarbonOffsetZap}>Go to Carbon Offset Zap Page</button>
+      </div>
+
     </>
   )
 }
