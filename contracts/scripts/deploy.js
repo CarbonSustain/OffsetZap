@@ -29,17 +29,15 @@ async function deployCarbonOffsetToPolygon() {
   console.log("Polygon Contract (CarbonOffset) deployed to:", carbonOffset.address);
   // Optional: Call a method from the deployed Base contract (e.g., send ETH or USDC to the Polygon contract)
   // Example: Send ETH from the Base contract (OffsetZap) to the Polygon contract (CarbonOffset)
-  const tx2 = await offsetZap.forwardToPolygon(ethers.utils.parseEther("0.1")); // Example of sending 0.1 ETH to the Polygon contract
+  const tx2 = await offsetZap.forwardToPolygon(ethers.utils.parseEther("0.01")); // Example of sending 0.1 ETH to the Polygon contract
   await tx2.wait();
   console.log("Forwarded funds to Polygon contract from Base contract.");
   return carbonOffset.address;
 }
 
 async function main() {
-  // deployMockBridge();
   const carbonOffsetAddress = deployCarbonOffsetToPolygon();
-  // const polygonContractAddress = process.env.POLYGON_CONTRACT_ADDRESS; // Replace with actual Polygon contract address
-  deployOffsetZapToBase(carbonOffsetAddress);
+  console.log("carbonOffsetAddress:", carbonOffsetAddress);
 }
 
 // Trigger the deployment

@@ -44,9 +44,9 @@ async function deployOffsetZapToBase(polygonContractAddress) {
 
 async function main() {
   // deployMockBridge();
-  const carbonOffsetAddress = deployCarbonOffsetToPolygon();
-  // const polygonContractAddress = process.env.POLYGON_CONTRACT_ADDRESS; // Replace with actual Polygon contract address
-  deployOffsetZapToBase(carbonOffsetAddress);
+  const polygonContractAddress = process.env.POLYGON_CONTRACT_ADDRESS;
+  deployOffsetZapToBase(polygonContractAddress);
+  console.log("deployOffsetZapToBase Polygon contract address set in OffsetZap:", polygonContractAddress);
 }
 
 // Trigger the deployment
