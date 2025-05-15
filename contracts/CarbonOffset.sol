@@ -8,7 +8,6 @@ interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
 }
 
-
 interface IKlimaRetire {
     function retireCarbon(
         address sourceToken,
@@ -18,8 +17,6 @@ interface IKlimaRetire {
         string calldata retirementMessage
     ) external;
 }
-
-
 
 contract CarbonOffset {
     address public owner;
@@ -98,4 +95,3 @@ contract CarbonOffset {
         require(IERC20(token).transfer(to, balance), "Withdraw failed");
     }
 }
-
