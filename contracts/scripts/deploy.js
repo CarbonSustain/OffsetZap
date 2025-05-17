@@ -24,7 +24,9 @@ async function deployCarbonOffsetToPolygon() {
   const CarbonOffset = await ethers.getContractFactory("CarbonOffset");
   const bctTokenAddress = process.env.BCT_TOKEN_ADDRESS; // Replace with the address of the BCT token
   const klimaRetireContractAddress = process.env.KLIMA_RETIRE_CONTRACT_ADDRESS; // Replace with the address of the KlimaRetire contract
-  const carbonOffset = await CarbonOffset.deploy(bctTokenAddress, klimaRetireContractAddress);
+  console.log(bctTokenAddress);
+  console.log(klimaRetireContractAddress);
+  const carbonOffset = await CarbonOffsetContract.deploy(klimaRetireContractAddress);
   await carbonOffset.deployed();
   console.log("Polygon Contract (CarbonOffset) deployed to:", carbonOffset.address);
   // Optional: Call a method from the deployed Base contract (e.g., send ETH or USDC to the Polygon contract)
@@ -35,6 +37,33 @@ async function deployCarbonOffsetToPolygon() {
   return carbonOffset.address;
 }
 
+async function deploy2() {
+  // Define the contract ABI and address
+  const CarbonOffsetABI = [
+    "function retire(uint _amount) public",
+    "function approve(address spender, uint256 amount) external returns (bool)",
+  ];
+
+  const contractAddress = "YOUR_DEPLOYED_CONTRACT_ADDRESS"; // Replace with the deployed contract address
+
+  // Set the address of the account to use for the transaction
+  const [signer] = await ethers.getSigners();
+
+  // Create an instance of the contract
+  const carbonOffsetContract = new ethers.Contract(contractAddress, CarbonOffsetABI, signer);
+
+  // Set the amount you want to retire (in KLIMA)
+  const amount = ethers.utils.parseUnits("10", 18); // For example, 10 KLIMA tokens (adjust decimal based on token precision)
+
+  // Call the retire function on the contract
+  console.log("Calling retire function...");
+  const tx = await carbonOffsetContract.retire(amount);
+
+  // Wait for the transaction to be mined
+  const receipt = await tx.wait();
+
+  console.log("Transaction completed, block number:", receipt.blockNumber);
+}
 async function main() {
   const carbonOffsetAddress = deployCarbonOffsetToPolygon();
   console.log("carbonOffsetAddress:", carbonOffsetAddress);

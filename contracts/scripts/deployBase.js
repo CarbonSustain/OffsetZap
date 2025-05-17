@@ -17,14 +17,14 @@ module.exports = {
   },
 };
 
-async function deployMockBridge() {
+async function deployBasePolygonBridge() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with the account:", deployer.address);
-  const Contract = await ethers.getContractFactory("MockBridge");
-  console.log("Deploying MockBridge contract...");
+  const Contract = await ethers.getContractFactory("BasePolygonBridge");
+  console.log("Deploying BasePolygonBridge contract...");
   const contract = await Contract.deploy();
   await contract.deployed();
-  console.log("MockBridge contract deployed to:", contract.address);
+  console.log("BasePolygonBridge contract deployed to:", contract.address);
   // Optional: Interact with the contract (if needed)
   const tx = await contract.sendMessageToPolygon("Hello, Polygon!");
   await tx.wait();
@@ -43,7 +43,7 @@ async function deployOffsetZapToBase(polygonContractAddress) {
 }
 
 async function main() {
-  // deployMockBridge();
+  // deployBasePolygonBridge();
   const polygonContractAddress = process.env.POLYGON_CONTRACT_ADDRESS;
   deployOffsetZapToBase(polygonContractAddress);
   console.log("deployOffsetZapToBase Polygon contract address set in OffsetZap:", polygonContractAddress);

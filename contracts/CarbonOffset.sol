@@ -1,97 +1,102 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+
+pragma solidity ^0.8.0;
 
 interface IERC20 {
-    function transferFrom(address from, address to, uint amount) external returns (bool);
-    function approve(address spender, uint amount) external returns (bool);
-    function transfer(address to, uint amount) external returns (bool);
+    function decimals() external view returns (uint8);
+    /**
+     * @dev Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
     function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `recipient`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address recipient, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `sender` to `recipient` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-interface IKlimaRetire {
-    function retireCarbon(
-        address sourceToken,
-        uint256 amount,
-        address beneficiaryAddress,
-        string calldata beneficiaryName,
-        string calldata retirementMessage
-    ) external;
+interface IKlimaRetirementAggregator {
+    function retireCarbon(address _sourceToken,address _poolToken,uint256 _amount,bool _amountInCarbon,address _beneficiaryAddress,string memory _beneficiaryString,string memory _retirementMessage) external;
+    function isPoolToken(address poolToken) external view returns ( bool );
 }
 
-contract CarbonOffset {
-    address public owner;
-    IERC20 public bct;
-    IKlimaRetire public klimaRetireContract;
-
-    event OffsetExecuted(address indexed beneficiary, uint256 amount, string name, string message);
-
-    constructor(address _bct, address _klimaRetire) {
-        owner = msg.sender;
-        bct = IERC20(_bct);
-        klimaRetireContract = IKlimaRetire(_klimaRetire);
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
-    }
-
-    // Accept ETH (if bridged from Base)
-    receive() external payable {}
-
-    /// @notice Offset carbon credits using BCT sent directly by user
-    function offset(
-        uint256 amount,
-        string calldata beneficiaryName,
-        string calldata message
-    ) external {
-        require(amount > 0, "Amount must be > 0");
-
-        // Pull BCT from user
-        require(bct.transferFrom(msg.sender, address(this), amount), "Transfer failed");
-
-        // Approve Klima aggregator
-        require(bct.approve(address(klimaRetireContract), amount), "Approval failed");
-
-        // Call KlimaDAO retirement
-        klimaRetireContract.retireCarbon(
-            address(bct),
-            amount,
-            msg.sender,
-            beneficiaryName,
-            message
-        );
-
-        emit OffsetExecuted(msg.sender, amount, beneficiaryName, message);
-    }
-
-    /// @notice Owner-triggered offset for use with bridged funds or delegated retirement
-    function offsetFromContract(
-        uint256 amount,
-        address beneficiary,
-        string calldata beneficiaryName,
-        string calldata message
-    ) external onlyOwner {
-        require(amount > 0, "Amount must be > 0");
-
-        // Approve Klima aggregator
-        require(bct.approve(address(klimaRetireContract), amount), "Approval failed");
-
-        // Call KlimaDAO retirement
-        klimaRetireContract.retireCarbon(
-            address(bct),
-            amount,
-            beneficiary,
-            beneficiaryName,
-            message
-        );
-
-        emit OffsetExecuted(beneficiary, amount, beneficiaryName, message);
-    }
+contract CarbonOffsetContract {
+    address public immutable KlimaRetirementAggregator;
     
-    // Optional: withdraw leftover funds
-    function withdraw(address token, address to) external onlyOwner {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        require(IERC20(token).transfer(to, balance), "Withdraw failed");
-    }
+    address public immutable KLIMA;
+    address public immutable BCT;
+    
+    address public beneficiaryAddress;
+    string public beneficiaryName;
+    string public retirementMessage;
+    
+    
+    /**
+     * @notice This function will attempt to swap KLIMA to the selected carbon token and then retire.
+     *
+     * @param _amount The total amount of KLIMA you want to use to retire.
+     */
+    function retire( uint _amount ) public {
+        IERC20(KLIMA).approve( KlimaRetirementAggregator, _amount );
+        IKlimaRetirementAggregator( KlimaRetirementAggregator ).retireCarbon( KLIMA, BCT, _amount, false, beneficiaryAddress, beneficiaryName, retirementMessage );
+    } 
 }

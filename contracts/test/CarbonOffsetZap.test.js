@@ -9,8 +9,8 @@ describe("CarbonOffsetZap", function () {
   beforeEach(async function () {
     [owner, bridge, other] = await ethers.getSigners();
 
-    const MockBridge = await ethers.getContractFactory("MockBridge");
-    const mockBridge = await MockBridge.deploy();
+    const MockBridge = await ethers.getContractFactory("BasePolygonBridge");
+    const mockBridge = await BasePolygonBridge.deploy();
     await mockBridge.deployed();
 
     const Zap = await ethers.getContractFactory("CarbonOffsetZap");
@@ -22,8 +22,6 @@ describe("CarbonOffsetZap", function () {
     const amount = ethers.utils.parseEther("1");
     const beneficiary = "beneficiary-address";
 
-    await expect(
-      zap.purchaseCarbonCredits(beneficiary, amount, { value: amount })
-    ).to.emit(zap, "PurchaseInitiated");
+    await expect(zap.purchaseCarbonCredits(beneficiary, amount, { value: amount })).to.emit(zap, "PurchaseInitiated");
   });
 });
