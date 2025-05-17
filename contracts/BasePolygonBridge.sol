@@ -9,11 +9,20 @@ interface IERC20 {
 
 contract BasePolygonBridge {
     address public owner;
+
+    // Polygon-side contract that will perform the carbon offset (manually triggered by teammate)
     address public polygonContractAddress;
-    event MessageSent(bytes data);
-    
-    // Token address for USDC on Base Sepolia (replace with actual contract address)
+
+    // USDC token address on Base Sepolia (replace with correct address)
     address public usdcAddress;
+
+    event BridgeRequest(
+        address indexed sender,
+        uint256 ethAmount,
+        uint256 usdcAmount,
+        string message,
+        string name
+    );
 
     constructor(address _polygonContractAddress, address _usdcAddress) {
         owner = msg.sender;
@@ -26,32 +35,35 @@ contract BasePolygonBridge {
         _;
     }
 
-    // Function to forward ETH or USDC to Polygon contract
-    function forwardFundsToPolygon(uint256 amountInETH, uint256 amountInUSDC) external payable {
-        // Forward ETH
+    /// @notice User calls this to initiate a bridge request with ETH and/or USDC
+    function forwardFundsToPolygon(
+        uint256 amountInETH,
+        uint256 amountInUSDC,
+        string calldata name,
+        string calldata message
+    ) external payable {
+        // Handle ETH
         if (amountInETH > 0) {
-            require(msg.value == amountInETH, "Sent ETH does not match requested amount");
-            // Forward ETH to the Polygon contract
-            (bool success, ) = polygonContractAddress.call{value: amountInETH}("");
-            require(success, "Failed to send ETH to Polygon contract");
-            emit MessageSent(abi.encodePacked("ETH forwarded to Polygon"));
+            require(msg.value == amountInETH, "Sent ETH mismatch");
         }
 
-        // Forward USDC
+        // Handle USDC
         if (amountInUSDC > 0) {
-            IERC20(usdcAddress).transferFrom(msg.sender, polygonContractAddress, amountInUSDC);
-            emit MessageSent(abi.encodePacked("USDC forwarded to Polygon"));
+            require(
+                IERC20(usdcAddress).transferFrom(msg.sender, address(this), amountInUSDC),
+                "USDC transfer failed"
+            );
         }
+
+        // Emit the event so your teammate (on Polygon) can read it and trigger offset
+        emit BridgeRequest(msg.sender, amountInETH, amountInUSDC, message, name);
     }
 
-    // Emergency function to withdraw any remaining funds (only for the owner)
+    /// @notice Emergency function to withdraw funds
     function withdraw(address token, uint256 amount) external onlyOwner {
         require(IERC20(token).transfer(owner, amount), "Withdraw failed");
     }
 
-    // Fallback function to accept ETH directly
+    /// @notice Fallback to accept ETH
     receive() external payable {}
 }
-
-
-
