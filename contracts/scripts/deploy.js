@@ -21,7 +21,7 @@ async function deployCarbonOffsetToPolygon() {
   // Step 2: Deploy the Polygon Contract (CarbonOffset.sol)
   console.log("Deploying the Polygon Contract (CarbonOffset.sol)...");
   // Get contract factory for CarbonOffset
-  const CarbonOffset = await ethers.getContractFactory("CarbonOffset");
+  const CarbonOffset = await ethers.getContractFactory("CarbonOffsetContract");
   const bctTokenAddress = process.env.BCT_TOKEN_ADDRESS; // Replace with the address of the BCT token
   const klimaRetireContractAddress = process.env.KLIMA_RETIRE_CONTRACT_ADDRESS; // Replace with the address of the KlimaRetire contract
   console.log(bctTokenAddress);
@@ -65,7 +65,7 @@ async function deploy2() {
   console.log("Transaction completed, block number:", receipt.blockNumber);
 }
 async function main() {
-  const carbonOffsetAddress = deployCarbonOffsetToPolygon();
+  const carbonOffsetAddress = await deployCarbonOffsetToPolygon();
   console.log("carbonOffsetAddress:", carbonOffsetAddress);
 }
 
