@@ -8,7 +8,7 @@ module.exports = {
   solidity: "0.8.18",
   networks: {
     polygon: {
-      url: process.env.ALCHEMY_API,
+      url: process.env.ALCHEMY_API || "https://rpc-mumbai.maticvigil.com",
       accounts: [process.env.PRIVATE_KEY],
       chainId: 80001, // Polygon Mumbai
     },
@@ -16,6 +16,11 @@ module.exports = {
       url: process.env.BASE_SEPOLIA_RPC_URL,
       accounts: [process.env.PRIVATE_KEY],
       chainId: 84532, // Base Sepolia
+    },
+    celoAlfaJores: {
+      url: process.env.CELO_ALFAJORES_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY],
+      chainId: 44787,
     },
   },
 };
@@ -27,7 +32,7 @@ async function deployCarbonBridgeToBase() {
   const baseCarbonBridge = await BaseCarbonBridge.deploy();
   await baseCarbonBridge.waitForDeployment();
 
-  const deployedAddress = baseCarbonBridge.target;
+  const deployedAddress = baseCarbonBridge.target
 
   console.log("BaseCarbonBridge deployed at:", deployedAddress);
 
@@ -50,8 +55,11 @@ async function deployKlimaToPolygon() {
   console.log("Deploying deployKlimaToPolygon...");
 
   const KlimaToPolygon = await ethers.getContractFactory("KlimaRetirementFacilitator");
+  console.log("KlimaToPolygon 1 :", KlimaToPolygon);
   const klimaToPolygon = await KlimaToPolygon.deploy();
+  console.log("KlimaToPolygon 2 :", klimaToPolygon);
   await klimaToPolygon.waitForDeployment();
+  console.log("deployKlimaToPolygon deployed at:", klimaToPolygon);
 
   const deployedAddress = klimaToPolygon.target;
 

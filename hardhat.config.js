@@ -38,9 +38,14 @@ module.exports = {
   },
   networks: {
     mumbai: {
-      url: process.env.ALCHEMY_API,
+      url: process.env.ALCHEMY_API || "https://rpc-mumbai.maticvigil.com",
       accounts: [`0x${process.env.PRIVATE_KEY}`],
       chainId: 80001,
+    },
+    polygonAmoy: {
+      url: process.env.POLYGON_RPC_URL,
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 80002,
     },
     polygon: {
       url: process.env.POLYGON_RPC_URL,
@@ -51,6 +56,11 @@ module.exports = {
       url: process.env.BASE_SEPOLIA_RPC_URL,
       accounts: [`0x${process.env.PRIVATE_KEY}`],
       chainId: 84532,
+    },
+    celoAlfaJores: {
+      url: process.env.CELO_ALFAJORES_RPC_URL,
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 44787,
     },
   },
 };
