@@ -9,8 +9,8 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 // LayerZero
-import "@layerzerolabs/solidity-examples/contracts/interfaces/ILayerZeroReceiver.sol";
-import "@layerzerolabs/solidity-examples/contracts/interfaces/ILayerZeroEndpoint.sol";
+import "./interfaces/ILayerZeroReceiver.sol";
+import "./interfaces/ILayerZeroEndpoint.sol";
 
 // Toucan Protocol retirements interface (simplified)
 interface IToucanRetirement {
@@ -125,7 +125,7 @@ contract PolygonCarbonRetirementFacilitator is
             revert ZeroAddress();
         if (_feeBps > 1000) revert InvalidFee();
 
-        __Ownable_init();
+        __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
@@ -302,7 +302,7 @@ contract PolygonCarbonRetirementFacilitator is
             address(0),
             bytes("")
         );
-        emit RetirementConfirmationSent(_dstChainId == 0 ? "" : abi.encodePacked(_dstChainId), _dstAddress, _retirementId, _retirementId, block.timestamp);
+        emit RetirementConfirmationSent(_dstChainId == 0 ? bytes("") : abi.encodePacked(_dstChainId), _dstAddress, _retirementId, _retirementId, block.timestamp);
     }
 
     // ─── UUPS Authorizer ────────────────────────────────────────────────────────
@@ -311,4 +311,3 @@ contract PolygonCarbonRetirementFacilitator is
     // ─── Fallback to receive native fees ───────────────────────────────────────
     receive() external payable {}
 }
-

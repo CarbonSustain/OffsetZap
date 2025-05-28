@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+// Enable IR-based code generation to handle stack too deep errors
+pragma experimental ABIEncoderV2;
+
 // OpenZeppelin Upgradeable
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -95,18 +98,39 @@ contract KlimaRetirementFacilitator is
         bool fulfilled;
     }
 
+    // New struct to handle stack too deep errors
+    struct RetirementParams {
+        uint256 requestId;
+        address user;
+        uint256 klimaAmount;
+        uint256 carbonTons;
+        address poolAddress;
+        address beneficiary;
+        string carbonType;
+        uint16 srcChainId;
+    }
+
+    // New struct for payload decoding to reduce local variables
+    struct PayloadData {
+        uint256 requestId;
+        address user;
+        string carbonType;
+        address beneficiary;
+        uint256 amountBase;
+    }
+
     /// -----------------------------------------------------------------------
     /// State Variables
     /// -----------------------------------------------------------------------
     ILayerZeroEndpoint public lzEndpoint;
     address public baseBridge;                  // trusted BaseCarbonBridge address
-    IR          implicit swapRouter;          // SushiSwap Router
-    IRetirementAggregator public aggregator;   // KlimaDAO RetirementAggregator
-    ICarbonPool public poolBCT;                // KlimaDAO BCT pool
-    ICarbonPool public poolNCT;                // KlimaDAO NCT pool
-    IERC20 public KLIMA;                       // KLIMA token
-    uint16 public feeBps;                      // fee in bps (default 100)
-    uint256 public nextRetireId;               // incremental local retirement ID
+    ISushiSwapRouter public swapRouter;         // SushiSwap Router
+    IRetirementAggregator public aggregator;    // KlimaDAO RetirementAggregator
+    ICarbonPool public poolBCT;                 // KlimaDAO BCT pool
+    ICarbonPool public poolNCT;                 // KlimaDAO NCT pool
+    IERC20 public KLIMA;                        // KLIMA token
+    uint16 public feeBps;                       // fee in bps (default 100)
+    uint256 public nextRetireId;                // incremental local retirement ID
 
     mapping(uint256 => RetirementRecord) public records; // retireId/requestId => record
 
@@ -115,6 +139,11 @@ contract KlimaRetirementFacilitator is
     /// -----------------------------------------------------------------------
     modifier onlyBridge() {
         if (msg.sender != baseBridge) revert OnlyBridge();
+        _;
+    }
+    
+    modifier onlyEndpoint() {
+        if (msg.sender != address(lzEndpoint)) revert Unauthorized();
         _;
     }
 
@@ -148,7 +177,7 @@ contract KlimaRetirementFacilitator is
             _klima == address(0)
         ) revert ZeroAddress();
 
-        __Ownable_init();
+        __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
@@ -196,7 +225,8 @@ contract KlimaRetirementFacilitator is
 
         // Retire via aggregator
         ICarbonPool pool = _poolByType(carbonType);
-        bytes32 retireProof = aggregator.retireExactCarbon(
+        // Call retireExactCarbon and ignore the return value since we're not using it
+        aggregator.retireExactCarbon(
             pool,
             klimaAmount,
             beneficiary
@@ -238,18 +268,52 @@ contract KlimaRetirementFacilitator is
         uint64,               // nonce
         bytes calldata payload
     ) external override onlyEndpoint nonReentrant {
-        // decode
-        (uint256 requestId, address user, string memory carbonType, address beneficiary, uint256 amountBase) =
+        // Process the cross-chain request in a separate function to avoid stack too deep error
+        _processCrossChainRequest(srcChainId, payload);
+    }
+    
+    /// @dev Internal function to process cross-chain retirement requests
+    /// @param srcChainId The source chain ID
+    /// @param payload The encoded payload from the source chain
+    function _processCrossChainRequest(uint16 srcChainId, bytes calldata payload) internal {
+        // Store the current ETH balance that was sent with the message
+        uint256 receivedValue = address(this).balance;
+        
+        // Decode payload into a struct to reduce local variables
+        PayloadData memory data = _decodePayload(payload);
+        
+        // Process retirement and get results
+        (bytes32 proof, ) = _processAndRecordRetirement(srcChainId, data);
+        
+        // Calculate fee
+        uint256 fee = (data.amountBase * feeBps) / 10_000;
+        
+        // Send confirmation back to Base
+        _sendConfirmation(data.requestId, proof, receivedValue - fee);
+        
+        emit RetirementConfirmed(data.requestId, uint16(1), abi.encode(data.requestId, proof), block.timestamp);
+    }
+    
+    /// @dev Decode the payload into a struct to reduce local variables
+    function _decodePayload(bytes calldata payload) internal pure returns (PayloadData memory data) {
+        (data.requestId, data.user, data.carbonType, data.beneficiary, data.amountBase) =
             abi.decode(payload, (uint256, address, string, address, uint256));
-
-        if (msg.sender != address(lzEndpoint)) revert Unauthorized();
-
-        // Swap incoming MATIC (native) balance to KLIMA
-        // assume amountBase was sent along in msg.value
+        return data;
+    }
+    
+    /// @dev Process retirement and record it
+    function _processAndRecordRetirement(uint16 srcChainId, PayloadData memory data) 
+        internal returns (bytes32 proof, RetirementParams memory params) {
+        // Process the retirement
+        uint256 klimaAmount;
+        uint256 carbonTons;
+        address poolAddress;
+        
         // Deduct fee
-        uint256 fee    = (amountBase * feeBps) / 10_000;
-        uint256 amount = amountBase - fee;
-
+        uint256 fee = (data.amountBase * feeBps) / 10_000;
+        uint256 amount = data.amountBase - fee;
+        
+        // Swap tokens
         address[] memory path = new address[](2);
         path[0] = swapRouter.WETH();
         path[1] = address(KLIMA);
@@ -259,50 +323,70 @@ contract KlimaRetirementFacilitator is
             address(this),
             block.timestamp
         );
-        uint256 klimaAmount = amounts[1];
+        klimaAmount = amounts[1];
         if (klimaAmount == 0) revert SwapFailed();
-
-        // Retire
-        ICarbonPool pool = _poolByType(carbonType);
-        bytes32 proof = aggregator.retireExactCarbon(pool, klimaAmount, beneficiary);
-        uint256 carbonTons = pool.tonnesRetired(beneficiary);
-
-        // record it
-        records[requestId] = RetirementRecord({
-            user: user,
-            klimaUsed: klimaAmount,
-            carbonAmount: carbonTons,
-            pool: address(pool),
-            beneficiary: beneficiary,
-            carbonType: carbonType,
-            srcChain: srcChainId,
+        
+        // Retire carbon
+        ICarbonPool pool = _poolByType(data.carbonType);
+        poolAddress = address(pool);
+        proof = aggregator.retireExactCarbon(pool, klimaAmount, data.beneficiary);
+        carbonTons = pool.tonnesRetired(data.beneficiary);
+        
+        // Create params struct
+        params = RetirementParams({
+            requestId: data.requestId,
+            user: data.user,
+            klimaAmount: klimaAmount,
+            carbonTons: carbonTons,
+            poolAddress: poolAddress,
+            beneficiary: data.beneficiary,
+            carbonType: data.carbonType,
+            srcChainId: srcChainId
+        });
+        
+        // Record the retirement
+        _recordRetirement(params);
+        
+        return (proof, params);
+    }
+    
+    /// @dev Record a retirement in storage
+    function _storeRetirementRecord(RetirementParams memory params) internal {
+        // Record it
+        records[params.requestId] = RetirementRecord({
+            user: params.user,
+            klimaUsed: params.klimaAmount,
+            carbonAmount: params.carbonTons,
+            pool: params.poolAddress,
+            beneficiary: params.beneficiary,
+            carbonType: params.carbonType,
+            srcChain: params.srcChainId,
             fulfilled: true
         });
-
+    }
+    
+    /// @dev Emit the CrossChainRetired event
+    function _emitCrossChainRetired(RetirementParams memory params) internal {
         emit CrossChainRetired(
-            requestId,
-            user,
-            klimaAmount,
-            carbonTons,
-            address(pool),
-            beneficiary,
-            carbonType,
-            srcChainId,
+            params.requestId,
+            params.user,
+            params.klimaAmount,
+            params.carbonTons,
+            params.poolAddress,
+            params.beneficiary,
+            params.carbonType,
+            params.srcChainId,
             block.timestamp
         );
-
-        // send confirmation back to Base
-        bytes memory confirmation = abi.encode(requestId, proof);
-        lzEndpoint.send{value: msg.value - fee}(
-            uint16(1),                      // Base chain ID (LayerZero)
-            abi.encodePacked(baseBridge),   // destination
-            confirmation,
-            payable(address(this)),
-            address(0),
-            bytes("")
-        );
-
-        emit RetirementConfirmed(requestId, uint16(1), confirmation, block.timestamp);
+    }
+    
+    /// @dev Record a retirement and emit event using a struct to avoid stack too deep
+    function _recordRetirement(RetirementParams memory params) internal {
+        // Store the record
+        _storeRetirementRecord(params);
+        
+        // Emit the event
+        _emitCrossChainRetired(params);
     }
 
     /// -----------------------------------------------------------------------
@@ -350,6 +434,22 @@ contract KlimaRetirementFacilitator is
         if (t == keccak256("BCT")) return poolBCT;
         if (t == keccak256("NCT")) return poolNCT;
         revert InvalidCarbonType();
+    }
+
+    /// @dev Send confirmation back to Base chain
+    /// @param requestId The original request ID
+    /// @param proof The retirement proof
+    /// @param value The amount of ETH to send with the message
+    function _sendConfirmation(uint256 requestId, bytes32 proof, uint256 value) internal {
+        bytes memory confirmation = abi.encode(requestId, proof);
+        lzEndpoint.send{value: value}(
+            uint16(1),                      // Base chain ID (LayerZero)
+            abi.encodePacked(baseBridge),   // destination
+            confirmation,
+            payable(address(this)),
+            address(0),
+            bytes("")
+        );
     }
 
     /// @dev Required by UUPS

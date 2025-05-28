@@ -315,4 +315,3 @@ contract CarbonRetirementFacilitatorCeloUpgradeable is
     receive() external payable {}
     fallback() external payable {}
 }
-
