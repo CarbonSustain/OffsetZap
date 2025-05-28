@@ -38,7 +38,7 @@ module.exports = {
   },
   networks: {
     mumbai: {
-      url: process.env.POLYGON_RPC_URL,
+      url: process.env.ALCHEMY_API,
       accounts: [`0x${process.env.PRIVATE_KEY}`],
       chainId: 80001,
     },
