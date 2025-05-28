@@ -23,8 +23,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@layerzerolabs/solidity-examples/contracts/interfaces/ILayerZeroReceiver.sol";
-import "@layerzerolabs/solidity-examples/contracts/interfaces/ILayerZeroEndpoint.sol";
+import "./interfaces/ILayerZeroReceiver.sol";
+import "./interfaces/ILayerZeroEndpoint.sol";
 import "./interfaces/IToucanContractRegistry.sol";
 import "./interfaces/ICarbonProjectVintages.sol";
 import "./interfaces/IRetirementCertificate.sol";
@@ -206,13 +206,12 @@ contract CarbonRetirementFacilitatorCeloUpgradeable is
      * @dev Validates and dispatches to _handleCrossChainRetirement
      * @param _srcChainId chain ID of sender
      * @param _srcAddress sender address in bytes
-     * @param _nonce message nonce
      * @param _payload encoded retirement request
      */
     function lzReceive(
         uint16 _srcChainId,
         bytes calldata _srcAddress,
-        uint64 _nonce,
+        uint64,
         bytes calldata _payload
     ) external override {
         // only endpoint can call
@@ -245,7 +244,7 @@ contract CarbonRetirementFacilitatorCeloUpgradeable is
         bytes calldata srcAddress
     ) internal nonReentrant {
         // Transfer tokens that the bridge pre-funded to facilitator
-        IERC20(projectVintage).transferFrom(authorizedBridgeAddress.toAddress(), address(this), amount);
+        IERC20(projectVintage).transferFrom(toAddress(authorizedBridgeAddress), address(this), amount);
 
         // Calculate fee and net
         uint256 fee = (amount * feeBasisPoints) / 10_000;

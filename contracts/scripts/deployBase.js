@@ -31,6 +31,23 @@ async function deployBasePolygonBridge() {
   console.log("Message sent to Polygon:", tx.hash);
 }
 
+async function deployCarbonBridgeToBase(contractAddress) {
+  console.log("Deploying BaseCarbonBridge...");
+
+  // Get the contract factory
+  const BaseCarbonBridge = await ethers.getContractFactory("BaseCarbonBridge");
+
+  // Deploy the contract with the Polygon contract address as a constructor argument
+  const baseCarbonBridge = await BaseCarbonBridge.deploy();
+
+  // Wait for the contract to be deployed
+  await baseCarbonBridge.deployed();
+
+  console.log("BaseCarbonBridge deployed at:", baseCarbonBridge.address);
+
+  return baseCarbonBridge.address; // Optional: return address for further use
+}
+
 async function deployOffsetZapToBase(polygonContractAddress) {
   // Step 1: Deploy the Base Contract (OffsetZap.sol)
   console.log("Deploying the Base Contract (OffsetZap.sol)...");
@@ -40,13 +57,20 @@ async function deployOffsetZapToBase(polygonContractAddress) {
   const offsetZap = await OffsetZap.deploy(polygonContractAddress);
   await offsetZap.deployed();
   console.log("Base Contract (OffsetZap) deployed to:", offsetZap.address);
+  return offsetZap;
 }
 
 async function main() {
   // deployBasePolygonBridge();
+  /*
   const polygonContractAddress = process.env.POLYGON_CONTRACT_ADDRESS;
   deployOffsetZapToBase(polygonContractAddress);
-  console.log("deployOffsetZapToBase Polygon contract address set in OffsetZap:", polygonContractAddress);
+  */
+  const offsetZap = await deployCarbonBridgeToBase();
+
+  console.log("deployCarbonBridgeToBase: address ", offsetZap.address);
+  console.log("deployCarbonBridgeToBase: abi", offsetZap.abi);
+  console.log("deployCarbonBridgeToBase: offsetZap", offsetZap);
 }
 
 // Trigger the deployment

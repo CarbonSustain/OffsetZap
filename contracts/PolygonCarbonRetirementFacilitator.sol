@@ -125,7 +125,7 @@ contract PolygonCarbonRetirementFacilitator is
             revert ZeroAddress();
         if (_feeBps > 1000) revert InvalidFee();
 
-        __Ownable_init(msg.sender);
+        __Ownable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 

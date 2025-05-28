@@ -177,7 +177,7 @@ contract KlimaRetirementFacilitator is
             _klima == address(0)
         ) revert ZeroAddress();
 
-        __Ownable_init(msg.sender);
+        __Ownable_init();
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
