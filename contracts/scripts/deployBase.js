@@ -8,7 +8,7 @@ module.exports = {
   solidity: "0.8.18",
   networks: {
     polygon: {
-      url: process.env.ALCHEMY_API || "https://rpc-mumbai.maticvigil.com",
+      url: process.env.ALCHEMY_API,
       accounts: [process.env.PRIVATE_KEY],
       chainId: 80001, // Polygon Mumbai
     },
@@ -80,12 +80,44 @@ async function deployKlimaToPolygon() {
   };
 }
 
+async function deployToucanToCelo() {
+  console.log("Deploying deployToucanToCelo...");
+
+  const ToucanToCelo = await ethers.getContractFactory("CarbonRetirementFacilitatorCeloUpgradeable");
+  console.log("ToucanToCelo 1 :", ToucanToCelo);
+  const toucanToCelo = await ToucanToCelo.deploy();
+  console.log("ToucanToCelo 2 :", toucanToCelo);
+  await toucanToCelo.waitForDeployment();
+  console.log("deployToucanToCelo deployed at:", toucanToCelo);
+
+  const deployedAddress = toucanToCelo.target;
+
+  console.log("BaseCarbonBridge deployed at:", deployedAddress);
+
+  const abi = ToucanToCelo.interface.formatJson(); // Ethers v6 ABI formatting
+
+  // Optional: Save to disk
+  fs.writeFileSync(
+    path.join(__dirname, "ToucanToCeloDeployment.json"),
+    JSON.stringify({ address: deployedAddress, abi }, null, 2)
+  );
+
+  return {
+    address: deployedAddress,
+    abi,
+    contract: toucanToCelo,
+  };
+}
+
 async function main() {
   //const deployedAddress = await deployCarbonBridgeToBase();
   //console.log("deployCarbonBridgeToBase: deployedAddress", deployedAddress);
 
-  const deployedAddress = await deployKlimaToPolygon();
-  console.log("deployKlimaToPolygon: deployedAddress", deployedAddress);
+  // const deployedAddress = await deployKlimaToPolygon();
+  // console.log("deployKlimaToPolygon: deployedAddress", deployedAddress);
+
+  const deployedAddress = await deployToucanToCelo();
+  console.log("deployToucanToCelo: deployedAddress", deployedAddress);
 }
 
 // Trigger the deployment
