@@ -1,5 +1,8 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+const { ethers } = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
 module.exports = {
   solidity: "0.8.18",
@@ -34,20 +37,28 @@ async function deployBasePolygonBridge() {
 async function deployCarbonBridgeToBase() {
   console.log("Deploying BaseCarbonBridge...");
 
-  // Get the contract factory
   const BaseCarbonBridge = await ethers.getContractFactory("BaseCarbonBridge");
-
-  // Deploy the contract with the Polygon contract address as a constructor argument
   const baseCarbonBridge = await BaseCarbonBridge.deploy();
+  await baseCarbonBridge.waitForDeployment();
 
-  // Wait for the contract to be deployed
-  await baseCarbonBridge.deployed();
+  const deployedAddress = baseCarbonBridge.target;
 
-  console.log("BaseCarbonBridge deployed at:", baseCarbonBridge.address);
+  console.log("BaseCarbonBridge deployed at:", deployedAddress);
 
-  return baseCarbonBridge.address; // Optional: return address for further use
+  const abi = BaseCarbonBridge.interface.formatJson(); // Ethers v6 ABI formatting
+
+  // Optional: Save to disk
+  fs.writeFileSync(
+    path.join(__dirname, "BaseCarbonBridgeDeployment.json"),
+    JSON.stringify({ address: deployedAddress, abi }, null, 2)
+  );
+
+  return {
+    address: deployedAddress,
+    abi,
+    contract: baseCarbonBridge,
+  };
 }
-
 async function deployOffsetZapToBase(polygonContractAddress) {
   // Step 1: Deploy the Base Contract (OffsetZap.sol)
   console.log("Deploying the Base Contract (OffsetZap.sol)...");
@@ -66,11 +77,8 @@ async function main() {
   const polygonContractAddress = process.env.POLYGON_CONTRACT_ADDRESS;
   deployOffsetZapToBase(polygonContractAddress);
   */
-  const offsetZap = await deployCarbonBridgeToBase();
-
-  console.log("deployCarbonBridgeToBase: address ", offsetZap.address);
-  console.log("deployCarbonBridgeToBase: abi", offsetZap.abi);
-  console.log("deployCarbonBridgeToBase: offsetZap", offsetZap);
+  const deployedAddress = await deployCarbonBridgeToBase();
+  console.log("deployCarbonBridgeToBase: deployedAddress", deployedAddress);
 }
 
 // Trigger the deployment
