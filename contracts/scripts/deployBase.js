@@ -109,6 +109,35 @@ async function deployToucanToCelo() {
   };
 }
 
+async function deployToucanToPolygon() {
+  console.log("Deploying deployToucanToPolygon...");
+
+  const ToucanToPolygon = await ethers.getContractFactory("CarbonRetirementFacilitatorPolygonUpgradeable");
+  console.log("ToucanToPolygon 1 :", ToucanToPolygon);
+  const toucanToPolygon = await ToucanToPolygon.deploy();
+  console.log("ToucanToPolygon 2 :", toucanToPolygon);
+  await toucanToPolygon.waitForDeployment();
+  console.log("deployToucanToPolygon deployed at:", toucanToPolygon);
+
+  const deployedAddress = toucanToPolygon.target;
+
+  console.log("BaseCarbonBridge deployed at:", deployedAddress);
+
+  const abi = ToucanToPolygon.interface.formatJson(); // Ethers v6 ABI formatting
+
+  // Optional: Save to disk
+  fs.writeFileSync(
+    path.join(__dirname, "ToucanToPolygonDeployment.json"),
+    JSON.stringify({ address: deployedAddress, abi }, null, 2)
+  );
+
+  return {
+    address: deployedAddress,
+    abi,
+    contract: toucanToPolygon,
+  };
+}
+
 async function main() {
   //const deployedAddress = await deployCarbonBridgeToBase();
   //console.log("deployCarbonBridgeToBase: deployedAddress", deployedAddress);
@@ -116,8 +145,11 @@ async function main() {
   // const deployedAddress = await deployKlimaToPolygon();
   // console.log("deployKlimaToPolygon: deployedAddress", deployedAddress);
 
-  const deployedAddress = await deployToucanToCelo();
-  console.log("deployToucanToCelo: deployedAddress", deployedAddress);
+  // const deployedAddress = await deployToucanToCelo();
+  // console.log("deployToucanToCelo: deployedAddress", deployedAddress);
+
+  const deployedAddress = await deployToucanToPolygon();
+  console.log("deployToucanToPolygon: deployedAddress", deployedAddress);
 }
 
 // Trigger the deployment
