@@ -31,7 +31,7 @@ async function deployBasePolygonBridge() {
   console.log("Message sent to Polygon:", tx.hash);
 }
 
-async function deployCarbonBridgeToBase(contractAddress) {
+async function deployCarbonBridgeToBase() {
   console.log("Deploying BaseCarbonBridge...");
 
   // Get the contract factory
