@@ -1,0 +1,20 @@
+{
+  "name": "offsetzap-vite",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "@across-protocol/app-sdk": "^0.2.2",
+    "ethers": "^5.7.2",
+    "toucan-sdk": "^1.0.6-beta",
+    "viem": "^2.30.6"
+  }
+}

@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Direct Retirement - OffsetZap</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #0d6efd;
+      margin-bottom: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      background-color: #fff;
+    }
+    .card-header {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #0d6efd;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    .btn {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    .btn:hover {
+      background-color: #0b5ed7;
+    }
+    .btn:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .status-success {
+      background-color: #d1e7dd;
+      color: #0f5132;
+    }
+    .status-error {
+      background-color: #f8d7da;
+      color: #842029;
+    }
+    .status-info {
+      background-color: #cff4fc;
+      color: #055160;
+    }
+    .status-warning {
+      background-color: #fff3cd;
+      color: #664d03;
+    }
+    .status-loading {
+      background-color: #e2e3e5;
+      color: #41464b;
+    }
+    .address {
+      font-family: monospace;
+      word-break: break-all;
+    }
+    pre {
+      background-color: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test Direct Retirement - OffsetZap</h1>
+    
+    <div class="card">
+      <div class="card-header">Wallet Connection</div>
+      <p><strong>Current User:</strong> <span id="user-address">Not connected</span></p>
+      <p><strong>Network:</strong> <span id="network-name">Not connected</span></p>
+      <button id="connect-wallet-btn" class="btn">Connect Wallet</button>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">Retirement Parameters</div>
+      
+      <div class="form-group">
+        <label for="usdc-amount">USDC Amount:</label>
+        <input type="text" id="usdc-amount" value="1000000" placeholder="Amount in smallest units (e.g., 1000000 = 1 USDC)">
+      </div>
+      
+      <div class="form-group">
+        <label for="beneficiary-name">Beneficiary Name:</label>
+        <input type="text" id="beneficiary-name" value="OffsetZap Test User" placeholder="Name of the beneficiary">
+      </div>
+      
+      <div class="form-group">
+        <label for="beneficiary-address">Beneficiary Address (optional):</label>
+        <input type="text" id="beneficiary-address" placeholder="Leave empty to use your wallet address">
+      </div>
+      
+      <div class="form-group">
+        <label for="pool-token">Carbon Pool Token:</label>
+        <select id="pool-token">
+          <option value="0x2F800Db0fdb5223b3C3f354886d907A671414A7F">BCT - Base Carbon Tonne</option>
+          <option value="0xD838290e877E0188a4A44700463419ED96c16107">NCT - Nature Carbon Tonne</option>
+        </select>
+      </div>
+      
+      <button id="retire-btn" class="btn" disabled>Execute Retirement</button>
+    </div>
+    
+    <div id="status-message" class="status hidden"></div>
+    
+    <div class="alert alert-warning" id="networkWarning" style="display: none;">
+      Please switch to Polygon network (Chain ID: 137)
+      <button id="switchNetworkBtn" class="btn btn-sm btn-primary ms-2">Switch to Polygon</button>
+    </div>
+    
+    <div class="card hidden" id="result-card">
+      <div class="card-header">Transaction Result</div>
+      <div id="result-content"></div>
+    </div>
+  </div>
+
+  <!-- Load ethers.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  
+  <script>
+    
+    // Constants
+    const KLIMA_RETIREMENT_FACILITATOR = "0xc8A7eF66A708D1Bb4A447444687321CED6287F9c";
+    // The facilitator contract was actually deployed with native USDC, not USDC.e
+    const POLYGON_USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"; // Native USDC on Polygon
+    const POLYGON_USDC_BRIDGED = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e (bridged)
+    const POLYGON_CHAIN_ID = 137;
+    
+    // DOM Elements
+    const connectWalletBtn = document.getElementById('connect-wallet-btn');
+    const retireBtn = document.getElementById('retire-btn');
+    const userAddressEl = document.getElementById('user-address');
+    const networkNameEl = document.getElementById('network-name');
+    const usdcAmountInput = document.getElementById('usdc-amount');
+    const beneficiaryNameInput = document.getElementById('beneficiary-name');
+    const beneficiaryAddressInput = document.getElementById('beneficiary-address');
+    const poolTokenSelect = document.getElementById('pool-token');
+    const statusMessageEl = document.getElementById('status-message');
+    const resultCardEl = document.getElementById('result-card');
+    const resultContentEl = document.getElementById('result-content');
+    
+    // State
+    let provider = null;
+    let signer = null;
+    
+    // Event Listeners
+    connectWalletBtn.addEventListener('click', connectWallet);
+    retireBtn.addEventListener('click', executeRetirement);
+    document.getElementById('switchNetworkBtn').addEventListener('click', switchToPolygonNetwork);
+    
+    // Functions
+    async function connectWallet() {
+      try {
+        showStatus('Connecting wallet...', 'info');
+        
+        // Check if window.ethereum is available
+        if (!window.ethereum) {
+          throw new Error("MetaMask or another web3 provider is required");
+        }
+        
+        // Request account access
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        
+        // Create ethers provider and signer
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        signer = provider.getSigner();
+        
+        // Get user address
+        const address = await signer.getAddress();
+        userAddressEl.textContent = address;
+        
+        // Check if we're on the correct network
+        const network = await provider.getNetwork();
+        networkNameEl.textContent = network.name + ' (Chain ID: ' + network.chainId + ')';
+        
+        // Show network info but don't restrict execution
+        if (network.chainId !== POLYGON_CHAIN_ID) {
+          showStatus(`Warning: Not on Polygon network (Chain ID: ${POLYGON_CHAIN_ID}). Transactions may fail, but you can still try.`, 'warning');
+          // Show network warning with switch button
+          document.getElementById('networkWarning').style.display = 'block';
+        } else {
+          showStatus('Wallet connected successfully on Polygon network!', 'success');
+          // Hide network warning
+          document.getElementById('networkWarning').style.display = 'none';
+        }
+        
+        // Enable the retirement button regardless of network
+        retireBtn.disabled = false;
+      } catch (error) {
+        console.error('Failed to connect wallet:', error);
+        showStatus(`Failed to connect wallet: ${error.message}`, 'error');
+      }
+    }
+    
+    async function executeRetirement() {
+      try {
+        // Get input values
+        const usdcAmount = usdcAmountInput.value.trim();
+        const beneficiaryName = beneficiaryNameInput.value.trim();
+        const beneficiaryAddress = beneficiaryAddressInput.value.trim() || await signer.getAddress();
+        const poolTokenAddress = poolTokenSelect.value;
+        
+        // Validate inputs
+        if (!usdcAmount || isNaN(usdcAmount)) {
+          throw new Error("Please enter a valid USDC amount");
+        }
+        
+        if (!beneficiaryName) {
+          throw new Error("Please enter a beneficiary name");
+        }
+        
+        showStatus('Checking USDC balance...', 'loading');
+        
+        // Check if user has enough USDC before proceeding
+        try {
+          const userAddress = await signer.getAddress();
+          
+          // Check native USDC balance (this is what the contract expects)
+          const usdcContract = new ethers.Contract(
+            POLYGON_USDC_ADDRESS,
+            [
+              "function balanceOf(address owner) view returns (uint256)",
+              "function decimals() view returns (uint8)",
+              "function symbol() view returns (string)"
+            ],
+            provider
+          );
+          
+          // Also check bridged USDC.e for informational purposes
+          const bridgedUsdcContract = new ethers.Contract(
+            POLYGON_USDC_BRIDGED,
+            [
+              "function balanceOf(address owner) view returns (uint256)",
+              "function decimals() view returns (uint8)",
+              "function symbol() view returns (string)"
+            ],
+            provider
+          );
+          
+          // Get balances from both contracts
+          const nativeBalance = await usdcContract.balanceOf(userAddress);
+          const nativeDecimals = await usdcContract.decimals();
+          const nativeSymbol = await usdcContract.symbol();
+          
+          const bridgedBalance = await bridgedUsdcContract.balanceOf(userAddress);
+          const bridgedDecimals = await bridgedUsdcContract.decimals();
+          const bridgedSymbol = await bridgedUsdcContract.symbol();
+          
+          // Log both balances for debugging
+          console.log(`${nativeSymbol} Balance (${POLYGON_USDC_ADDRESS}): ${ethers.utils.formatUnits(nativeBalance, nativeDecimals)}`);
+          console.log(`${bridgedSymbol} Balance (${POLYGON_USDC_BRIDGED}): ${ethers.utils.formatUnits(bridgedBalance, bridgedDecimals)}`);
+          
+          // Check if bridged USDC balance is sufficient (we're now using bridged USDC)
+          const requiredAmount = ethers.BigNumber.from(usdcAmount);
+          
+          if (bridgedBalance.gte(requiredAmount)) {
+            showStatus(`Using ${bridgedSymbol}: ${ethers.utils.formatUnits(bridgedBalance, bridgedDecimals)} available`, 'info');
+            // Store which USDC we're using in a global variable
+            window.activeUsdcAddress = POLYGON_USDC_BRIDGED;
+            window.activeUsdcDecimals = bridgedDecimals;
+          } else if (nativeBalance.gte(requiredAmount)) {
+            showStatus(`Using ${nativeSymbol}: ${ethers.utils.formatUnits(nativeBalance, nativeDecimals)} available`, 'info');
+            // Store which USDC we're using in a global variable
+            window.activeUsdcAddress = POLYGON_USDC_ADDRESS;
+            window.activeUsdcDecimals = nativeDecimals;
+          } else {
+            // Neither balance is sufficient
+            showStatus(`Insufficient USDC balance. You have ${ethers.utils.formatUnits(bridgedBalance, bridgedDecimals)} ${bridgedSymbol} and ${ethers.utils.formatUnits(nativeBalance, nativeDecimals)} ${nativeSymbol}, but need ${ethers.utils.formatUnits(requiredAmount, 6)} USDC`, 'error');
+            retireBtn.disabled = false;
+            return;
+          }
+        } catch (balanceError) {
+          console.warn("Failed to check balance, proceeding anyway:", balanceError);
+        }
+        
+        showStatus('Executing retirement transaction...', 'loading');
+        retireBtn.disabled = true;
+        
+        // Call the retirement function
+        const result = await callRetireWithUsdc(
+          provider,
+          usdcAmount,
+          beneficiaryName,
+          beneficiaryAddress,
+          poolTokenAddress,
+          updateProgress
+        );
+        
+        // Display result
+        showStatus('Retirement transaction completed!', 'success');
+        displayResult(result);
+      } catch (error) {
+        console.error('Failed to execute retirement:', error);
+        
+        // Enhanced error handling with more specific messages
+        let errorMessage = error.message;
+        
+        if (error.code === -32603) {
+          // Internal JSON-RPC error handling
+          errorMessage = "Internal JSON-RPC error. This could be due to:";
+          
+          // Check for common causes in the error message
+          if (error.message.toLowerCase().includes('insufficient funds')) {
+            errorMessage += "\n- Insufficient ETH for gas fees";
+          } else if (error.message.toLowerCase().includes('gas required exceeds')) {
+            errorMessage += "\n- Gas estimation failed, transaction may be invalid";
+          } else if (error.message.toLowerCase().includes('nonce')) {
+            errorMessage += "\n- Transaction nonce issue, try resetting your wallet";
+          } else if (error.message.toLowerCase().includes('always failing transaction')) {
+            errorMessage += "\n- Contract is rejecting the transaction";
+          } else {
+            errorMessage += "\n- Network congestion or node issues\n- Contract may be rejecting the transaction\n- Try switching to a different RPC in your wallet settings";
+          }
+          
+          // Add debugging info
+          console.log("Transaction parameters:", {
+            usdcAmount: usdcAmountInput.value.trim(),
+            beneficiaryName: beneficiaryNameInput.value.trim(),
+            beneficiaryAddress: beneficiaryAddressInput.value.trim() || 'Using wallet address',
+            poolToken: poolTokenSelect.value
+          });
+        } else if (error.message.includes('user rejected')) {
+          errorMessage = "Transaction was rejected in your wallet";
+        }
+        
+        showStatus(`Failed to execute retirement: ${errorMessage}`, 'error');
+        retireBtn.disabled = false;
+      }
+    }
+    
+    function updateProgress(progress) {
+      console.log('Progress update:', progress);
+      
+      if (progress.status === 'error') {
+        showStatus(`Error: ${progress.message}`, 'error');
+      } else if (progress.status === 'submitted') {
+        showStatus(`Transaction submitted: ${progress.hash}`, 'info');
+      } else {
+        showStatus(progress.message, progress.status === 'success' ? 'success' : 'loading');
+      }
+    }
+    
+    function displayResult(result) {
+      resultCardEl.classList.remove('hidden');
+      
+      const html = `
+        <p><strong>Status:</strong> ${result.status}</p>
+        <p><strong>Transaction Hash:</strong> <a href="https://polygonscan.com/tx/${result.hash}" target="_blank">${result.hash}</a></p>
+        ${result.transfers && result.transfers.length > 0 ? `
+          <p><strong>USDC Transfers:</strong></p>
+          <pre>${JSON.stringify(result.transfers, null, 2)}</pre>
+        ` : ''}
+      `;
+      
+      resultContentEl.innerHTML = html;
+    }
+    
+    function showStatus(message, type) {
+      statusMessageEl.textContent = message;
+      statusMessageEl.className = `status status-${type}`;
+      statusMessageEl.classList.remove('hidden');
+    }
+    
+    /**
+     * Call the retireWithUsdc function on the KlimaRetirementFacilitator contract
+     * @param {Object} provider - The ethers provider with signer
+     * @param {string} usdcAmount - The USDC amount to retire
+     * @param {string} beneficiaryName - The name of the beneficiary
+     * @param {string} beneficiaryAddress - The address of the beneficiary
+     * @param {string} poolTokenAddress - The pool token address
+     * @param {Function} onProgress - Optional callback for progress updates
+     * @returns {Promise<Object>} - The transaction result
+     */
+    async function callRetireWithUsdc(provider, usdcAmount, beneficiaryName, beneficiaryAddress, poolTokenAddress, onProgress = null) {
+      try {
+        // console.log("Calling retireWithUsdc on KlimaRetirementFacilitator with parameters:", {
+        //   facilitatorAddress: KLIMA_RETIREMENT_FACILITATOR,
+        //   usdcAmount,
+        //   beneficiaryName,
+        //   beneficiaryAddress,
+        //   poolTokenAddress
+        // });
+        
+        // // Create a simpler contract interface focusing on just what we need
+        // const facilitatorABI = [
+        //   // The exact function signature from your Solidity contract
+        //   "function retireWithUsdc(uint256 usdcAmountToRetire, string memory beneficiaryName, address beneficiaryAddress, address poolToken) external",
+        //   // Event for tracking
+        //   "event CarbonRetiredViaFacilitator(address indexed beneficiary, string beneficiaryName, uint256 usdcAmountRetired)"
+        // ];
+        
+        // const facilitatorContract = new ethers.Contract(
+        //   KLIMA_RETIREMENT_FACILITATOR,
+        //   facilitatorABI,
+        //   provider.getSigner()
+        // );
+        
+        // // Log contract details for debugging
+        // console.log("Using facilitator contract at:", KLIMA_RETIREMENT_FACILITATOR);
+        
+        // Create a direct transaction data payload as a fallback
+        // This is the function selector for retireWithUsdc(uint256,string,address,address)
+        // const functionSelector = '0x' + ethers.utils.id("retireWithUsdc(uint256,string,address,address)").slice(2, 10);
+        // console.log("Function selector:", functionSelector);
+        const KLIMA_AGGREGATOR_ADDRESS = "0x8cE54d9625371fb2a068986d32C85De8E6e995f8";
+
+        const KLIMA_AGGREGATOR_DIAMOND_ADDRESS = "0x8cE54d9625371fb2a068986d32C85De8E6e995f8";
+        
+        // Create contract instance for the KlimaDAO Aggregator Diamond contract
+        // Using only the function we know works based on transaction logs
+        const klimaAggregator = new ethers.Contract(
+          KLIMA_AGGREGATOR_DIAMOND_ADDRESS,
+          [{"anonymous":false,"inputs":[{"indexed":false,"internalType":"enum LibRetire.CarbonBridge","name":"carbonBridge","type":"uint8"},{"indexed":true,"internalType":"address","name":"retiringAddress","type":"address"},{"indexed":false,"internalType":"string","name":"retiringEntityString","type":"string"},{"indexed":true,"internalType":"address","name":"beneficiaryAddress","type":"address"},{"indexed":false,"internalType":"string","name":"beneficiaryString","type":"string"},{"indexed":false,"internalType":"string","name":"retirementMessage","type":"string"},{"indexed":true,"internalType":"address","name":"carbonPool","type":"address"},{"indexed":false,"internalType":"address","name":"poolToken","type":"address"},{"indexed":false,"internalType":"uint256","name":"retiredAmount","type":"uint256"}],"name":"CarbonRetired","type":"event"},{"inputs":[{"internalType":"address","name":"sourceToken","type":"address"},{"internalType":"address","name":"poolToken","type":"address"},{"internalType":"uint256","name":"maxAmountIn","type":"uint256"},{"internalType":"string","name":"retiringEntityString","type":"string"},{"internalType":"address","name":"beneficiaryAddress","type":"address"},{"internalType":"string","name":"beneficiaryString","type":"string"},{"internalType":"string","name":"retirementMessage","type":"string"},{"internalType":"enum LibTransfer.From","name":"fromMode","type":"uint8"}],"name":"retireExactSourceDefault","outputs":[{"internalType":"uint256","name":"retirementIndex","type":"uint256"}],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"address","name":"sourceToken","type":"address"},{"internalType":"address","name":"poolToken","type":"address"},{"internalType":"address","name":"projectToken","type":"address"},{"internalType":"uint256","name":"maxAmountIn","type":"uint256"},{"internalType":"string","name":"retiringEntityString","type":"string"},{"internalType":"address","name":"beneficiaryAddress","type":"address"},{"internalType":"string","name":"beneficiaryString","type":"string"},{"internalType":"string","name":"retirementMessage","type":"string"},{"internalType":"enum LibTransfer.From","name":"fromMode","type":"uint8"}],"name":"retireExactSourceSpecific","outputs":[{"internalType":"uint256","name":"retirementIndex","type":"uint256"}],"stateMutability":"payable","type":"function"}],
+          signer
+        );
+        
+        console.log("Using Klima Aggregator at:", KLIMA_AGGREGATOR_DIAMOND_ADDRESS);
+        
+        // Use the detected USDC token address or fall back to the default
+        const activeUsdcAddress = window.activeUsdcAddress || POLYGON_USDC_ADDRESS;
+        console.log(`Using USDC token at address: ${activeUsdcAddress}`);
+        
+        // Create USDC contract interface to monitor transfers
+        const usdcContract = new ethers.Contract(
+          activeUsdcAddress,
+          [
+            "event Transfer(address indexed from, address indexed to, uint256 value)",
+            "function decimals() view returns (uint8)",
+            "function approve(address spender, uint256 amount) returns (bool)",
+            "function symbol() view returns (string)"
+          ],
+          provider.getSigner()
+        );
+        
+        // Get USDC decimals for formatting
+        const decimals = await usdcContract.decimals();
+        
+        // Notify of transaction start
+        if (onProgress) {
+          onProgress({
+            type: 'retirement',
+            status: 'pending',
+            message: 'Preparing retirement transaction...'
+          });
+        }
+        
+        // Ensure all values are properly defined and formatted
+        const safeUsdcAmount = usdcAmount ? usdcAmount.toString() : '0';
+        const safeBeneficiaryName = beneficiaryName || "OffsetZap User";
+        const safeBeneficiaryAddress = beneficiaryAddress || await provider.getSigner().getAddress();
+        const safePoolTokenAddress = poolTokenAddress || "0x2F800Db0fdb5223b3C3f354886d907A671414A7F"; // Default to BCT
+        
+        console.log("Safe parameters for retirement:", {
+          safeUsdcAmount,
+          safeBeneficiaryName,
+          safeBeneficiaryAddress,
+          safePoolTokenAddress
+        });
+        
+        // First approve USDC spending
+        if (onProgress) {
+          onProgress({
+            type: 'approval',
+            status: 'pending',
+            message: 'Approving USDC transfer...'
+          });
+        }
+        
+        // // Add retry logic for rate limiting
+        // let approveTx;
+        // let retries = 3;
+        // while (retries > 0) {
+        //   try {
+        //     approveTx = await usdcContract.approve(
+        //       KLIMA_RETIREMENT_FACILITATOR,
+        //       safeUsdcAmount
+        //     );
+        //     break; // Success, exit the retry loop
+        //   } catch (error) {
+        //     retries--;
+        //     if (error.message && error.message.includes('rate limit')) {
+        //       console.log(`Rate limited, retrying... (${retries} attempts left)`);
+        //       if (retries > 0) {
+        //         // Wait before retrying (increasing backoff)
+        //         await new Promise(resolve => setTimeout(resolve, (4 - retries) * 2000));
+        //         continue;
+        //       }
+        //     }
+        //     // If not a rate limit error or no retries left, rethrow
+        //     throw error;
+        //   }
+        // }
+        
+        // console.log("USDC approval transaction sent:", approveTx);
+        
+        // if (onProgress) {
+        //   onProgress({
+        //     type: 'approval',
+        //     status: 'submitted',
+        //     message: 'USDC approval submitted to blockchain',
+        //     hash: approveTx.hash,
+        //     explorerUrl: `https://polygonscan.com/tx/${approveTx.hash}`
+        //   });
+        // }
+        
+        // // Wait for approval to be mined
+        // const approveReceipt = await approveTx.wait();
+        // console.log("USDC approval confirmed:", approveReceipt);
+        
+        // if (onProgress) {
+        //   onProgress({
+        //     type: 'approval',
+        //     status: 'success',
+        //     message: 'USDC approval confirmed, preparing retirement...',
+        //     hash: approveReceipt.transactionHash
+        //   });
+        // }
+        
+        // Now call the retireWithUsdc function with retry logic
+        let tx;
+        retries = 3;
+        while (retries > 0) {
+          try {
+            showStatus(`Sending retirement transaction (attempt ${4-retries}/3)...`, 'loading');
+            
+            // Skip the facilitator and go directly to the Klima Aggregator
+            console.log("Going directly to Klima Aggregator Diamond contract...");
+            
+            // First approve USDC for the Klima Aggregator
+            console.log("Approving USDC for Klima Aggregator...");
+            const approveForAggregatorTx = await usdcContract.approve(
+              KLIMA_AGGREGATOR_ADDRESS,
+              safeUsdcAmount
+            );
+            console.log("Approval transaction sent:", approveForAggregatorTx.hash);
+            
+            // Wait for approval to be mined
+            const approveForAggregatorReceipt = await approveForAggregatorTx.wait();
+            console.log("Approval for Aggregator confirmed:", approveForAggregatorReceipt);
+            
+            // Debug log all parameters being sent
+            console.log("Retirement parameters:", {
+              sourceToken: activeUsdcAddress,
+              poolToken: safePoolTokenAddress,
+              amount: safeUsdcAmount,
+              retiringEntityString: safeBeneficiaryName,
+              beneficiaryAddress: safeBeneficiaryAddress,
+              beneficiaryString: safeBeneficiaryName,
+              retirementMessage: "Carbon retirement via OffsetZap",
+              fromMode: 0
+            });
+            
+            // Use NCT instead of BCT as the pool token
+            // NCT (Nature Carbon Tonne) pool token address on Polygon
+            const BCT_ADDRESS = "0x2F800Db0fdb5223b3C3f354886d907A671414A7F";
+            
+            // Focus on using retireExactSourceDefault which we know works from the logs
+            // But use a much smaller amount to increase chances of success
+            console.log("Using retireExactSourceDefault with small amount...");
+            
+            // Try with just 1 USDC for testing
+            // const smallAmount = ethers.utils.parseUnits("1", 6); // 1 USDC with 6 decimals
+            
+            console.log("Using parameters:", {
+              sourceToken: activeUsdcAddress,
+              poolToken: BCT_ADDRESS,
+              maxAmountIn: safeUsdcAmount,
+              retiringEntityString: safeBeneficiaryName,
+              beneficiaryAddress: safeBeneficiaryAddress,
+              beneficiaryString: safeBeneficiaryName,
+              retirementMessage: "Carbon retirement via OffsetZap",
+              fromMode: 0
+            });
+
+            try {
+              // First try local simulation
+              simulateTx = await klimaAggregator.callStatic.retireExactSourceDefault(
+                activeUsdcAddress,           // sourceToken (USDC)
+                BCT_ADDRESS,                 // poolToken (Using BCT)
+                safeUsdcAmount,              // maxAmountIn
+                safeBeneficiaryName,         // retiringEntityString
+                safeBeneficiaryAddress,      // beneficiaryAddress
+                safeBeneficiaryName,         // beneficiaryString (same as retiring entity)
+                "Carbon retirement via OffsetZap", // retirementMessage
+                0,                           // fromMode: 0 = FROM_WALLET
+                {
+                  gasLimit: 1500000,          // Very high gas limit
+                  gasPrice: await provider.getGasPrice() // Current gas price
+                }
+              );
+              console.log("Local simulation successful");
+            } catch (error) {
+              console.error("Error in local simulation:", error);
+              
+              // If local simulation fails, try Tenderly simulation
+              try {
+                console.log("Attempting Tenderly simulation...");
+                
+                // Prepare transaction data for Tenderly
+                const txData = klimaAggregator.interface.encodeFunctionData("retireExactSourceDefault", [
+                  activeUsdcAddress,
+                  BCT_ADDRESS,
+                  safeUsdcAmount,
+                  safeBeneficiaryName,
+                  safeBeneficiaryAddress,
+                  safeBeneficiaryName,
+                  "Carbon retirement via OffsetZap",
+                  0
+                ]);
+                
+                // Get user address
+                const userAddress = await signer.getAddress();
+                
+                // Construct the Tenderly simulation request
+                const tenderlyRequest = {
+                  network_id: "137", // Polygon Mainnet
+                  from: userAddress,
+                  to: KLIMA_AGGREGATOR_DIAMOND_ADDRESS,
+                  input: txData,
+                  gas: 1500000,
+                  gas_price: (await provider.getGasPrice()).toString(),
+                  value: "0",
+                  save: true, // Save the simulation for viewing in Tenderly dashboard
+                  save_if_fails: true
+                };
+                
+                console.log("Tenderly simulation request:", tenderlyRequest);
+                
+                // // Display link to set up Tenderly API access
+                // console.log("To use Tenderly simulation, you need to set up an account and API key at https://tenderly.co/");
+                // console.log("Then you can use their REST API to simulate this transaction:");
+                // console.log("curl -X POST \\\n  https://api.tenderly.co/api/v1/account/danieloforji/project/offsetzap/simulate \\\n  -H 'content-type: application/json' \\\n  -H 'X-Access-Key: {YOUR_ACCESS_KEY}' \\\n  -d '" + JSON.stringify(tenderlyRequest) + "'");
+                
+                // Note: In a production app, you would make an actual API call to Tenderly here
+                const tenderlyResponse = await fetch('https://api.tenderly.co/api/v1/account/danieloforji/project/offsetzap/simulate', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Access-Key': 'GnH1B08Uq1Oq0XzS9PY7smcVkQt7MhUe'
+                  },
+                  body: JSON.stringify(tenderlyRequest)
+                }).then(res => res.json());
+                
+                console.log("Tenderly simulation response:", tenderlyResponse);
+                if (tenderlyResponse.simulation) {
+                  console.log("Tenderly simulation URL:", `https://dashboard.tenderly.co/tx/${tenderlyResponse.simulation.id}`);
+                }
+              } catch (tenderlyError) {
+                console.error("Error preparing Tenderly simulation:", tenderlyError);
+              }
+            }
+            
+            // Call the retireExactSourceDefault function directly on the Klima Aggregator
+            tx = await klimaAggregator.retireExactSourceDefault(
+              activeUsdcAddress,           // sourceToken (USDC)
+              BCT_ADDRESS,                 // poolToken (Using BCT)
+              safeUsdcAmount,              // maxAmountIn
+              safeBeneficiaryName,         // retiringEntityString
+              safeBeneficiaryAddress,      // beneficiaryAddress
+              safeBeneficiaryName,         // beneficiaryString (same as retiring entity)
+              "Carbon retirement via OffsetZap", // retirementMessage
+              0,                           // fromMode: 0 = FROM_WALLET
+              {
+                gasLimit: 1500000,          // Increased gas limit (from 1M to 1.5M)
+                gasPrice: await provider.getGasPrice() // Current gas price
+              }
+            );
+            
+            console.log("Direct Klima Aggregator transaction sent:", tx);
+            
+            break; // Success, exit the retry loop
+          } catch (error) {
+            console.error("Error during retirement:", error);
+            retries--;
+            
+            if ((error.message && error.message.includes('rate limit')) || 
+                (error.code && error.code === -32603) ||
+                (error.message && error.message.includes('gas limit')) ||
+                error.message.includes('nonce')) {
+              console.log(`Rate limited, retrying retirement... (${retries} attempts left)`);
+              showStatus(`Rate limited by RPC, retrying in ${(4-retries)*2} seconds...`, 'warning');
+              if (retries > 0) {
+                // Wait before retrying (increasing backoff)
+                await new Promise(resolve => setTimeout(resolve, (4 - retries) * 2000));
+                continue;
+              }
+            }
+            
+            // If not a retryable error or no retries left, show error and rethrow
+            showStatus(`Transaction failed: ${error.message}`, 'error');
+            throw error;
+          }
+        }
+        
+        // console.log("retireWithUsdc transaction sent:", tx);
+        
+        // Notify that transaction is submitted
+        if (onProgress) {
+          onProgress({
+            type: 'retirement',
+            status: 'submitted',
+            message: 'Retirement transaction submitted to blockchain',
+            hash: tx.hash,
+            explorerUrl: `https://polygonscan.com/tx/${tx.hash}`
+          });
+        }
+        
+        // Wait for the transaction to be mined
+        const receipt = await tx.wait();
+        console.log("retireWithUsdc transaction confirmed:", receipt);
+        
+        // Look for Transfer events in the receipt logs
+        const transferEvents = receipt.logs
+          .filter(log => {
+            try {
+              return log.address.toLowerCase() === POLYGON_USDC_ADDRESS.toLowerCase();
+            } catch (e) {
+              return false;
+            }
+          })
+          .map(log => {
+            try {
+              return usdcContract.interface.parseLog(log);
+            } catch (e) {
+              return null;
+            }
+          })
+          .filter(event => event && event.name === 'Transfer');
+        
+        // Extract transfer details if available
+        let transferDetails = [];
+        if (transferEvents.length > 0) {
+          transferDetails = transferEvents.map(event => ({
+            from: event.args.from,
+            to: event.args.to,
+            value: ethers.utils.formatUnits(event.args.value, decimals)
+          }));
+          console.log("USDC transfers detected:", transferDetails);
+        }
+        
+        // Notify of transaction completion
+        if (onProgress) {
+          onProgress({
+            type: 'retirement',
+            status: receipt.status === 1 ? 'success' : 'failed',
+            message: receipt.status === 1 
+              ? `Successfully retired carbon credits for ${beneficiaryName || beneficiaryAddress}` 
+              : 'Carbon retirement transaction failed',
+            hash: receipt.transactionHash,
+            explorerUrl: `https://polygonscan.com/tx/${receipt.transactionHash}`,
+            transfers: transferDetails
+          });
+        }
+        
+        return {
+          hash: receipt.transactionHash,
+          status: receipt.status === 1 ? 'success' : 'failed',
+          transfers: transferDetails
+        };
+      } catch (error) {
+        console.error("Failed to call retire from aggregator:", error);
+        
+        // Notify of error
+        if (onProgress) {
+          onProgress({
+            type: 'retirement',
+            status: 'error',
+            message: `Retirement failed: ${error.message || 'Unknown error'}`
+          });
+        }
+        
+        throw error;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Across Protocol Carbon Retirement</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #2c3e50;
+      margin-top: 0;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    button:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 10px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .status-info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
+    .status-success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .status-warning {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .status-error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .hidden {
+      display: none;
+    }
+    .result-card {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    .result-card a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    .result-card a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Across Protocol Carbon Retirement</h1>
+    <p>Bridge USDC from Base to Polygon and retire carbon credits in one transaction.</p>
+    
+    <div class="form-group">
+      <button id="connect-button">Connect Wallet</button>
+      <button id="network-button" class="hidden">Switch to Base</button>
+    </div>
+    
+    <div class="form-group">
+      <label for="usdc-amount">USDC Amount:</label>
+      <input type="text" id="usdc-amount" placeholder="e.g. 10.5">
+    </div>
+    
+    <div class="form-group">
+      <label for="beneficiary-name">Beneficiary Name (optional):</label>
+      <input type="text" id="beneficiary-name" placeholder="e.g. John Doe">
+    </div>
+    
+    <div class="form-group">
+      <label for="beneficiary-address">Beneficiary Address (optional):</label>
+      <input type="text" id="beneficiary-address" placeholder="0x...">
+    </div>
+    
+    <div class="form-group">
+      <label for="pool-token">Carbon Pool Token:</label>
+      <select id="pool-token">
+        <option value="0x2F800Db0fdb5223b3C3f354886d907A671414A7F">bct</option>
+        <option value="0x4268B8F0B87b6Eae5d897996E6b845ddbD99Adf3">nct</option>
+        <option value="0x6BCa3B77C1909Ce1a4Ba1A20d1103bDe8d222E48">ubo</option>
+        <option value="0x7122539761b2f884A2abDD54DBca46970D1F95Ad">nbo</option>
+      </select>
+    </div>
+    
+    <button id="retire-button" disabled>Execute Retirement</button>
+    
+    <div id="status-message" class="status hidden"></div>
+    
+    <div id="result-card" class="result-card hidden">
+      <h3>Transaction Results</h3>
+      <div id="result-content"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { connectWallet, executeRetirement, switchToBaseNetwork } from './src/across-app.js';
+    
+    // Expose functions to HTML elements
+    window.connectWallet = connectWallet;
+    window.executeRetirement = executeRetirement;
+    window.switchToBaseNetwork = switchToBaseNetwork;
+    
+    // Add event listeners when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('connect-button').addEventListener('click', connectWallet);
+      document.getElementById('network-button').addEventListener('click', switchToBaseNetwork);
+      document.getElementById('retire-button').addEventListener('click', executeRetirement);
+    });
+  </script>
+</body>
+</html>

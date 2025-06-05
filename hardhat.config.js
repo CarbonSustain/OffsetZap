@@ -48,13 +48,13 @@ module.exports = {
       chainId: 80002,
     },
     polygon: {
-      url: process.env.POLYGON_RPC_URL,
-      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      url: process.env.POLYGON_MAINNET_RPC_URL,
+      accounts: [`0x${process.env.PRIVATE_KEY_2}`],
       chainId: 137,
     },
     base: {
       url: process.env.BASE_SEPOLIA_RPC_URL,
-      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      accounts: [`0x${process.env.PRIVATE_KEY_2}`],
       chainId: 84532,
     },
     celoAlfaJores: {

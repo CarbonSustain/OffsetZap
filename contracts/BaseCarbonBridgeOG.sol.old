@@ -29,7 +29,7 @@ contract BaseCarbonBridge is
         uint256 indexed requestId,
         address indexed user,
         uint256 amountBase,           // in wei or USDC smallest unit
-        uint32 dstChainId,
+        uint16 dstChainId,
         string carbonType,
         address beneficiary
     );
@@ -37,7 +37,7 @@ contract BaseCarbonBridge is
         uint256 indexed requestId,
         address indexed user,
         uint256 amountBase,
-        uint32 srcChainId,
+        uint16 srcChainId,
         bytes proof
     );
     event FeesWithdrawn(address to, uint256 amount);
@@ -64,7 +64,7 @@ contract BaseCarbonBridge is
     struct RetirementRequest {
         address user;
         uint256 amount;        // in base chain currency
-        uint32 dstChainId;
+        uint16 dstChainId;
         string carbonType;
         address beneficiary;
         bool completed;
@@ -94,7 +94,7 @@ contract BaseCarbonBridge is
     mapping(string => bool) public supportedCarbonTypes;
 
     // Supported destination chain IDs
-    mapping(uint32 => bool) public supportedChains;
+    mapping(uint16 => bool) public supportedChains;
 
     /// -----------------------------------------------------------------------
     /// Modifiers
@@ -123,14 +123,9 @@ contract BaseCarbonBridge is
         feeBps = 100; //1%
         nextRequestId = 1;
 
-        // Mainnet chains: Celo = 26, Polygon = 109
-        supportedChains[26] = true;  // Celo Mainnet
-        supportedChains[42220] = true;  // LZ Celo Mainnet
-        supportedChains[109] = true; // Polygon Mainnet
-        
-        // Testnet chains: Celo Alfajores = 44787, Polygon Amoy = 80002
-        supportedChains[44787] = true; // Celo Alfajores
-        supportedChains[80002] = true; // Polygon Amoy
+        // default supported chains: Celo = 26, Polygon = 109
+        supportedChains[26] = true;
+        supportedChains[109] = true;
 
         // default supported carbon types
         supportedCarbonTypes["toucan_bct"] = true;
@@ -146,19 +141,17 @@ contract BaseCarbonBridge is
      * @notice Initiate a carbon credit retirement request.
      * @dev User must send native ETH (msg.value) for ETH highways or approve & transfer USDC before calling for USDC.
      * @param useUSDC Set true to use USDC, false for native ETH
-     * @param amount Amount of ETH or USDC to use
-     * @param dstChainId Destination chain ID (Polygon or Celo)
-     * @param carbonType Type of carbon credit to retire
+     * @param amount Amount of base asset (wei or USDC smallest unit)
+     * @param dstChainId Destination LayerZero chain ID (Celo=26, Polygon=109)
+     * @param carbonType One of supported carbon credit types
      * @param beneficiary Address on destination chain to retire to
-     * @param destinationAddress The address of the contract on the destination chain
      */
     function initiateRetirement(
         bool useUSDC,
         uint256 amount,
-        uint32 dstChainId,
+        uint16 dstChainId,
         string calldata carbonType,
-        address beneficiary,
-        bytes calldata destinationAddress
+        address beneficiary
     ) external payable nonReentrant returns (uint256 requestId) {
         if (amount == 0) revert ZeroAmount();
         if (!supportedChains[dstChainId]) revert InvalidChain();
@@ -200,12 +193,9 @@ contract BaseCarbonBridge is
         );
 
         // send cross-chain message
-        // Check if the chain ID fits within uint16 range for LayerZero compatibility
-        if (dstChainId > type(uint16).max) revert InvalidChain();
-        
         lzEndpoint.send{value: msg.value - (useUSDC ? 0 : fee)}(
-            uint16(dstChainId),
-            destinationAddress,  // Use the provided destination address
+            dstChainId,
+            abi.encodePacked(address(this)),
             payload,
             payable(msg.sender),
             address(0),
@@ -221,9 +211,9 @@ contract BaseCarbonBridge is
      *      Expected payload: abi.encode(requestId, completedProof)
      */
     function lzReceive(
-        uint16 _srcChainId,
-        bytes calldata _srcAddress,
-        uint64,
+        uint16 srcChainId,
+        bytes calldata,            // srcAddress
+        uint64,                    // nonce
         bytes calldata payload
     ) external override onlyEndpoint nonReentrant {
         (uint256 requestId, bytes memory proof) = abi.decode(payload, (uint256, bytes));
@@ -233,8 +223,6 @@ contract BaseCarbonBridge is
         r.completed = true;
         r.proof = proof;
 
-        // Convert uint16 to uint32 for our internal representation
-        uint32 srcChainId = uint32(_srcChainId);
         emit RetirementCompleted(requestId, r.user, r.amount, srcChainId, proof);
     }
 
@@ -252,7 +240,7 @@ contract BaseCarbonBridge is
         returns (
             address user,
             uint256 amount,
-            uint32 dstChainId,
+            uint16 dstChainId,
             string memory carbonType,
             address beneficiary,
             bool completed,
@@ -300,7 +288,7 @@ contract BaseCarbonBridge is
     /**
      * @notice Owner can add/remove supported destination chains
      */
-    function setSupportedChain(uint32 chainId, bool enabled) external onlyOwner {
+    function setSupportedChain(uint16 chainId, bool enabled) external onlyOwner {
         supportedChains[chainId] = enabled;
     }
 

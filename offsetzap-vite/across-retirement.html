@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Across Protocol Carbon Retirement - OffsetZap</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #0d6efd;
+      margin-bottom: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      background-color: #fff;
+    }
+    .card-header {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #0d6efd;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    .btn {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    .btn:hover {
+      background-color: #0b5ed7;
+    }
+    .btn:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .status-success {
+      background-color: #d1e7dd;
+      color: #0f5132;
+    }
+    .status-error {
+      background-color: #f8d7da;
+      color: #842029;
+    }
+    .status-info {
+      background-color: #cff4fc;
+      color: #055160;
+    }
+    .status-warning {
+      background-color: #fff3cd;
+      color: #664d03;
+    }
+    .status-loading {
+      background-color: #e2e3e5;
+      color: #41464b;
+    }
+    .address {
+      font-family: monospace;
+      word-break: break-all;
+    }
+    pre {
+      background-color: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Across Protocol Carbon Retirement - OffsetZap</h1>
+    <div class="card">
+      <div class="card-header">Wallet Connection</div>
+      <p><strong>Current User:</strong> <span id="user-address">Not connected</span></p>
+      <p><strong>Network:</strong> <span id="network-name">Not connected</span></p>
+      <button id="connect-wallet-btn" class="btn">Connect Wallet</button>
+    </div>
+    <div class="card">
+      <div class="card-header">Retirement Parameters</div>
+      <div class="form-group">
+        <label for="usdc-amount">USDC Amount:</label>
+        <input type="text" id="usdc-amount" value="1" placeholder="Amount in USDC (e.g., 1)">
+      </div>
+      <div class="form-group">
+        <label for="beneficiary-name">Beneficiary Name:</label>
+        <input type="text" id="beneficiary-name" value="OffsetZap Test User" placeholder="Name of the beneficiary">
+      </div>
+      <div class="form-group">
+        <label for="beneficiary-address">Beneficiary Address (optional):</label>
+        <input type="text" id="beneficiary-address" placeholder="Leave empty to use your wallet address">
+      </div>
+      <div class="form-group">
+        <label for="pool-token">Carbon Pool Token:</label>
+        <select id="pool-token">
+          <option value="0x2F800Db0fdb5223b3C3f354886d907A671414A7F">BCT - Base Carbon Tonne</option>
+          <option value="0xD838290e877E0188a4A44700463419ED96c16107">NCT - Nature Carbon Tonne</option>
+        </select>
+      </div>
+      <button id="retire-btn" class="btn" disabled>Execute Retirement</button>
+    </div>
+    <div id="status-message" class="status hidden"></div>
+    <div class="alert alert-warning" id="networkWarning" style="display: none;">
+      Please switch to Base network (Chain ID: 8453)
+      <button id="switchNetworkBtn" class="btn btn-sm btn-primary ms-2">Switch to Base</button>
+    </div>
+    <div class="card hidden" id="result-card">
+      <div class="card-header">Transaction Result</div>
+      <div id="result-content"></div>
+    </div>
+  </div>
+  <!-- Load ethers.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <!-- Polyfill for TextEncoder/TextDecoder in browser if needed -->
+  <script src="https://cdn.jsdelivr.net/npm/fast-text-encoding@1.0.3/text.min.js"></script>
+  <!-- Load the Across SDK from UNPKG -->
+  <script>
+    // Define a function to load the SDK script and create a promise that resolves when it's loaded
+    function loadAcrossSDK() {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/@across-protocol/sdk-v2@latest/dist/index.js';
+        script.onload = () => {
+          console.log('Across SDK loaded successfully');
+          resolve();
+        };
+        script.onerror = () => {
+          reject(new Error('Failed to load Across SDK'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    
+    // Load the SDK when the page loads
+    window.acrossSdkLoaded = loadAcrossSDK();
+  </script>
+  <script>
+    // Across Protocol constants
+    const BASE_CHAIN_ID = 8453;
+    const POLYGON_CHAIN_ID = 137;
+    const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const POLYGON_USDC = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+    const DEFAULT_POOL_TOKEN = "0x2F800Db0fdb5223b3C3f354886d907A671414A7F"; // BCT
+    const ACROSS_RECIPIENT = "0xAa84Ef9CB72641E14A0453757fB908c7c950C2f2";
+
+    // DOM Elements
+    const connectWalletBtn = document.getElementById('connect-wallet-btn');
+    const retireBtn = document.getElementById('retire-btn');
+    const userAddressEl = document.getElementById('user-address');
+    const networkNameEl = document.getElementById('network-name');
+    const usdcAmountInput = document.getElementById('usdc-amount');
+    const beneficiaryNameInput = document.getElementById('beneficiary-name');
+    const beneficiaryAddressInput = document.getElementById('beneficiary-address');
+    const poolTokenSelect = document.getElementById('pool-token');
+    const statusMessageEl = document.getElementById('status-message');
+    const resultCardEl = document.getElementById('result-card');
+    const resultContentEl = document.getElementById('result-content');
+
+    // State
+    let provider = null;
+    let signer = null;
+    let userAddress = null;
+    let acrossClient = null;
+
+    // Event Listeners
+    connectWalletBtn.addEventListener('click', connectWallet);
+    retireBtn.addEventListener('click', executeRetirement);
+    document.getElementById('switchNetworkBtn').addEventListener('click', switchToBaseNetwork);
+
+    // Functions
+    async function connectWallet() {
+      try {
+        if (!window.ethereum) throw new Error('MetaMask not found');
+        provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+        await provider.send('eth_requestAccounts', []);
+        signer = provider.getSigner();
+        userAddress = await signer.getAddress();
+        userAddressEl.textContent = userAddress;
+        const network = await provider.getNetwork();
+        networkNameEl.textContent = network.name + ' (' + network.chainId + ')';
+        if (network.chainId !== BASE_CHAIN_ID) {
+          showStatus('Please switch to Base network (Chain ID: 8453)', 'warning');
+          retireBtn.disabled = true;
+        } else {
+          showStatus('Wallet connected. Ready to retire via Across Protocol.', 'success');
+          retireBtn.disabled = false;
+        }
+      } catch (err) {
+        showStatus('Failed to connect wallet: ' + (err.message || err), 'error');
+      }
+    }
+
+    function showStatus(message, type = 'info') {
+      statusMessageEl.textContent = message;
+      statusMessageEl.className = 'status status-' + type;
+      statusMessageEl.classList.remove('hidden');
+    }
+    function clearStatus() {
+      statusMessageEl.textContent = '';
+      statusMessageEl.className = 'status hidden';
+    }
+    function showResult(html) {
+      resultCardEl.classList.remove('hidden');
+      resultContentEl.innerHTML = html;
+    }
+    function clearResult() {
+      resultCardEl.classList.add('hidden');
+      resultContentEl.innerHTML = '';
+    }
+
+    async function executeRetirement() {
+      clearStatus();
+      clearResult();
+      if (!signer || !userAddress) {
+        showStatus('Connect your wallet first.', 'error');
+        return;
+      }
+      // Check network
+      const network = await provider.getNetwork();
+      if (network.chainId !== BASE_CHAIN_ID) {
+        showStatus('Please switch to Base network (Chain ID: 8453)', 'warning');
+        return;
+      }
+      // Get form values
+      const amountStr = usdcAmountInput.value.trim();
+      const beneficiaryName = beneficiaryNameInput.value.trim() || 'OffsetZap User';
+      let beneficiaryAddress = beneficiaryAddressInput.value.trim();
+      if (!beneficiaryAddress) beneficiaryAddress = userAddress;
+      const poolToken = poolTokenSelect.value;
+      // Validate amount
+      let amount;
+      try {
+        amount = ethers.utils.parseUnits(amountStr, 6);
+      } catch (e) {
+        showStatus('Invalid USDC amount', 'error');
+        return;
+      }
+      
+      // Wait for the Across SDK to load
+      try {
+        await window.acrossSdkLoaded;
+      } catch (err) {
+        showStatus('Failed to load Across SDK: ' + (err.message || err), 'error');
+        return;
+      }
+      showStatus('Preparing Across Protocol bridge...', 'info');
+      // Prepare Across client
+      if (!acrossClient) {
+        try {
+          if (!window.across) {
+            showStatus('Across SDK not available. Please refresh the page and try again.', 'error');
+            return;
+          }
+          console.log('Creating Across client with SDK:', window.across);
+          acrossClient = new window.across.Client({
+            integratorId: '0xdead',
+            chains: [8453, 137], // Base and Polygon chain IDs
+          });
+          console.log('Across client created:', acrossClient);
+        } catch (err) {
+          console.error('Error creating Across client:', err);
+          showStatus('Error creating Across client: ' + (err.message || err), 'error');
+          return;
+        }
+      }
+      // Prepare message
+      const messageData = {
+        beneficiary: beneficiaryAddress,
+        beneficiaryName: beneficiaryName,
+        poolToken: poolToken
+      };
+      const jsonMessage = JSON.stringify(messageData);
+      // TextEncoder polyfill for browser
+      let encoder = window.TextEncoder ? new TextEncoder() : new window.TextEncoderPolyfill();
+      const messageHex = '0x' + Array.from(encoder.encode(jsonMessage)).map(b => b.toString(16).padStart(2, '0')).join('');
+      // Build route
+      const route = {
+        originChainId: BASE_CHAIN_ID,
+        destinationChainId: POLYGON_CHAIN_ID,
+        inputToken: BASE_USDC,
+        outputToken: POLYGON_USDC,
+        recipient: ACROSS_RECIPIENT,
+        message: messageHex
+      };
+      try {
+        showStatus('Getting quote from Across...', 'info');
+        const quote = await acrossClient.getQuote({ route, inputAmount: amount });
+        showStatus('Sending bridge transaction (approve + deposit)...', 'info');
+        // Ethers v5 wallet client adapter
+        const walletClient = {
+          sendTransaction: async tx => signer.sendTransaction(tx),
+          getAddress: async () => userAddress
+        };
+        await acrossClient.executeQuote({
+          walletClient,
+          deposit: quote.deposit,
+          onProgress: progress => {
+            if (progress.step === 'approve' && progress.status === 'txSuccess') {
+              showStatus('USDC approval tx: ' + progress.txReceipt.transactionHash, 'success');
+            }
+            if (progress.step === 'deposit' && progress.status === 'txSuccess') {
+              showStatus('Deposit sent! Hash: ' + progress.txReceipt.transactionHash, 'success');
+              showResult(`<div><b>Deposit Tx:</b> <a href='https://basescan.org/tx/${progress.txReceipt.transactionHash}' target='_blank'>View on BaseScan</a></div>`);
+            }
+            if (progress.step === 'fill' && progress.status === 'txSuccess') {
+              showStatus('Fill complete! Hash: ' + progress.txReceipt.transactionHash, 'success');
+              showResult(`<div><b>Fill Tx:</b> <a href='https://polygonscan.com/tx/${progress.txReceipt.transactionHash}' target='_blank'>View on PolygonScan</a></div>`);
+            }
+          }
+        });
+      } catch (err) {
+        showStatus('Bridge or retirement failed: ' + (err.message || err), 'error');
+      }
+    }
+
+    function switchToBaseNetwork() {
+      if (!window.ethereum) return;
+      window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x2105' }], // 8453 in hex for Base
+      });
+    }
+
+    // On load, clear UI
+    clearStatus();
+    clearResult();
+  </script>
+</body>
+</html>
