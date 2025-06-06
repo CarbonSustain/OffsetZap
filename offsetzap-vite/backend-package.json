@@ -1,0 +1,20 @@
+{
+  "name": "offsetzap-backend",
+  "version": "1.0.0",
+  "description": "Backend service for OffsetZap carbon retirement via Across Protocol",
+  "main": "src/across-backend.js",
+  "scripts": {
+    "start": "node src/across-backend.js",
+    "dev": "nodemon src/across-backend.js"
+  },
+  "dependencies": {
+    "@across-protocol/app-sdk": "^0.1.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "ethers": "^5.7.2",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

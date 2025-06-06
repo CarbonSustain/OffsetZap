@@ -40,7 +40,7 @@
       box-sizing: border-box;
     }
     button {
-      background-color: #3498db;
+      background-color: #4CAF50; /* Light green */
       color: white;
       border: none;
       padding: 10px 15px;
@@ -48,12 +48,14 @@
       cursor: pointer;
       font-size: 16px;
       margin-right: 10px;
+      transition: background-color 0.3s ease;
     }
     button:hover {
-      background-color: #2980b9;
+      background-color: #45a049; /* Slightly darker green on hover */
     }
     button:disabled {
-      background-color: #95a5a6;
+      background-color: #a5d6a7; /* Very light green when disabled */
+      color: #e8f5e9;
       cursor: not-allowed;
     }
     .status {
@@ -94,6 +96,21 @@
     .result-card a:hover {
       text-decoration: underline;
     }
+    .result-item {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: white;
+    }
+    .status-success {
+      color: #155724;
+      font-weight: bold;
+    }
+    .status-error {
+      color: #721c24;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -104,6 +121,7 @@
     <div class="form-group">
       <button id="connect-button">Connect Wallet</button>
       <button id="network-button" class="hidden">Switch to Base</button>
+      <div><small>Wallet: <span id="wallet-address">Not connected</span></small></div>
     </div>
     
     <div class="form-group">
@@ -119,19 +137,21 @@
     <div class="form-group">
       <label for="beneficiary-address">Beneficiary Address (optional):</label>
       <input type="text" id="beneficiary-address" placeholder="0x...">
+      <small>If left empty, your connected wallet address will be used as the beneficiary.</small>
     </div>
     
     <div class="form-group">
       <label for="pool-token">Carbon Pool Token:</label>
       <select id="pool-token">
-        <option value="0x2F800Db0fdb5223b3C3f354886d907A671414A7F">bct</option>
-        <option value="0x4268B8F0B87b6Eae5d897996E6b845ddbD99Adf3">nct</option>
-        <option value="0x6BCa3B77C1909Ce1a4Ba1A20d1103bDe8d222E48">ubo</option>
-        <option value="0x7122539761b2f884A2abDD54DBca46970D1F95Ad">nbo</option>
+        <option value="0x2F800Db0fdb5223b3C3f354886d907A671414A7F">BCT - Base Carbon Tonne</option>
+        <option value="0x4268B8F0B87b6Eae5d897996E6b845ddbD99Adf3">NCT - Nature Carbon Tonne</option>
+        <option value="0x6BCa3B77C1909Ce1a4Ba1A20d1103bDe8d222E48">UBO - Universal Base Offset</option>
+        <option value="0x7122539761b2f884A2abDD54DBca46970D1F95Ad">NBO - Nature Base Offset</option>
       </select>
     </div>
     
-    <button id="retire-button" disabled>Execute Retirement</button>
+    <button id="retire-button" disabled>Bridge & Retire Carbon</button>
+    <p><small>This will bridge your USDC from Base to Polygon and retire carbon tokens in one transaction. An NFT receipt will be minted to your wallet.</small></p>
     
     <div id="status-message" class="status hidden"></div>
     
@@ -141,20 +161,6 @@
     </div>
   </div>
 
-  <script type="module">
-    import { connectWallet, executeRetirement, switchToBaseNetwork } from './src/across-app.js';
-    
-    // Expose functions to HTML elements
-    window.connectWallet = connectWallet;
-    window.executeRetirement = executeRetirement;
-    window.switchToBaseNetwork = switchToBaseNetwork;
-    
-    // Add event listeners when DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('connect-button').addEventListener('click', connectWallet);
-      document.getElementById('network-button').addEventListener('click', switchToBaseNetwork);
-      document.getElementById('retire-button').addEventListener('click', executeRetirement);
-    });
-  </script>
+  <script type="module" src="./src/across-frontend.js"></script>
 </body>
 </html>

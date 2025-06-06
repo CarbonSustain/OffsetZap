@@ -13,7 +13,10 @@
   },
   "dependencies": {
     "@across-protocol/app-sdk": "^0.2.2",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
     "ethers": "^5.7.2",
+    "express": "^5.1.0",
     "toucan-sdk": "^1.0.6-beta",
     "viem": "^2.30.6"
   }

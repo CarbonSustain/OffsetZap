@@ -49,6 +49,9 @@ contract AcrossCarbonRetirementReceiver is Ownable, ReentrancyGuard, IERC777Reci
     // Across Protocol's SpokePool on Polygon
     address public constant ACROSS_SPOKE_POOL = 0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096;
     
+    // Across Protocol's Multicall Handler on Polygon
+    address public constant MULTICALL_HANDLER_ADDRESS = 0x924a9f036260DdD5808007E1AA95f08eD08aA569;
+    
     // Events
     event RetirementExecuted(
         address indexed beneficiary,
@@ -331,7 +334,11 @@ contract AcrossCarbonRetirementReceiver is Ownable, ReentrancyGuard, IERC777Reci
         bytes calldata message
     ) external nonReentrant {
         // Only Across SpokePool can call this function
-        require(msg.sender == ACROSS_SPOKE_POOL, "Only Across SpokePool can call");
+        require(
+            msg.sender == ACROSS_SPOKE_POOL || 
+            msg.sender == MULTICALL_HANDLER_ADDRESS, 
+            "Only Across SpokePool or multicall handler can call"
+        );
         require(recipient == address(this), "Recipient must be this contract");
         
         // Check USDC balance
