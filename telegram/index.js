@@ -5,7 +5,8 @@ import { Telegraf } from "telegraf";
 import dotenv from "dotenv";
 dotenv.config();
 
-const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").toLowerCase();
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
 if (!TELEGRAM_BOT_TOKEN) {
   console.error("Error: TELEGRAM_BOT_TOKEN environment variable is not set.");
   process.exit(1);
@@ -29,7 +30,7 @@ async function sendToTelegram(text) {
 }
 
 async function setupXMTPClient() {
-  const wallet = Wallet.fromMnemonic(process.env.XMTP_MNEMONIC);
+  const wallet = Wallet.fromPhrase(process.env.XMTP_MNEMONIC);
   const xmtp = await Client.create(wallet, { env: "production" });
   return xmtp;
 }
@@ -67,6 +68,7 @@ bot.command("msg", async ctx => {
     await ctx.reply(`⚠️ Failed to send message: ${err.message}`);
   }
 });
+
 
 bot.launch();
 main().catch(console.error);
