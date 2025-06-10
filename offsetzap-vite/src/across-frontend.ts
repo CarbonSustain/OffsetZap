@@ -311,7 +311,7 @@ async function sendXmtpMessagetoOffset(
   message: string
 ): Promise<void> {
   // Use a hardcoded address for the offset team since process.env might not be available
-  const recipientAddress = process.env.REACT_APP_OFFSET_ADDRESS || '0x352bd309f1b5595ca03d16008cd1404091cd5951';
+  const recipientAddress = process.env.REACT_APP_OFFSET_ADDRESS || '0xa8A5a8fC9336B0036c7a08606790c26b5bB65d00';
   if (!xmtp) {
     console.log(`SIMULATION - Would send to offset team at ${recipientAddress}: ${message}`);
     return;
