@@ -9,10 +9,22 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/body-parser": "^1.19.5",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.2",
     "vite": "^6.3.5"
   },
   "dependencies": {
     "@across-protocol/app-sdk": "^0.2.2",
+    "@across-protocol/sdk": "^4.2.10",
+    "@walletconnect/ethereum-provider": "^2.21.1",
+    "@walletconnect/modal": "^2.7.0",
+    "@walletconnect/sign-client": "^2.21.1",
+    "@walletconnect/types": "^2.21.1",
+    "@walletconnect/utils": "^2.21.1",
+    "@walletconnect/web3-provider": "^1.8.0",
+    "@web3modal/standalone": "^2.4.3",
+    "@xmtp/browser-sdk": "^2.1.1",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "ethers": "^5.7.2",

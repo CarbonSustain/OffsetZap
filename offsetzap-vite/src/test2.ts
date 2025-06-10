@@ -1,4 +1,4 @@
-import { createAcrossClient } from "@across-protocol/app-sdk";
+import { createAcrossClient, AcrossClient } from "@across-protocol/app-sdk";
 import { base, polygon } from "viem/chains";
 import { Address, parseEther, parseUnits, encodeFunctionData, encodeAbiParameters } from "viem";
 import { type Chain} from "viem/chains";
@@ -39,7 +39,7 @@ export function createUserWalletClient(
 }
 
 const wallet = createUserWalletClient(
-  "0xb5ffa99a5c7bb44c918bfcb087c12147edbad470", // wallet private key
+  "0xb5ffa99a5c7bb98702cf2361762604ec4444e44c918bfcb087c12147edbad470", // wallet private key
   base,
   "https://base-mainnet.infura.io/v3/591c10e615c04ad5a783c9d6b44f0853",
 );
