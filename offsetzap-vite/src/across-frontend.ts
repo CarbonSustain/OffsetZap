@@ -182,7 +182,7 @@ async function sendXmtpMessage(recipientAddress: string, message: string): Promi
 // Function to send XMTP message to the offset team wallet
 async function sendXmtpMessagetoOffset(message: string): Promise<void> {
   // Use a hardcoded address for the offset team
-  const recipientAddress = '0x24216b523E78BA06538b5EB50FA353075fFDC08c'; //'0xa8A5a8fC9336B0036c7a08606790c26b5bB65d00';
+  const recipientAddress = '0xa8A5a8fC9336B0036c7a08606790c26b5bB65d00';
   
   // Simply use the same function we created for sending messages
   await sendXmtpMessage(recipientAddress, message);
@@ -548,15 +548,6 @@ async function createWalletClientWithAccount(): Promise<void> {
             }
           });
           
-          // // Set up event listeners for WalletConnect
-          // wcProvider.on('connect', (info: any) => {
-          //   console.log('WalletConnect connected event:', info);
-          //   if (wcProvider.session) {
-          //     shareWalletConnectSession(wcProvider.session).catch(err => {
-          //       console.warn('Error sharing session after connect:', err);
-          //     });
-          //   }
-          // });
           
           wcProvider.on('disconnect', () => {
             console.log('WalletConnect disconnected');
@@ -727,24 +718,6 @@ async function createWalletClientWithAccount(): Promise<void> {
       console.log('Across client created successfully');
       console.log('Across client:', client);
 
-      // // Before creating user client, close the notification client if it exists
-      // if (xmtpClient) {
-      //   console.log('Closing notification XMTP client before creating user client...');
-      //   await xmtpClient.close();
-      //   // Keep a reference to the notification client's inboxId if needed
-      //   const notificationInboxId = xmtpClient.inboxId;
-      //   // Reset the global variable
-      //   xmtpClient = null;
-      //   console.log('Notification client closed successfully');
-        
-      //   // Wait a brief moment
-      //   await new Promise(resolve => setTimeout(resolve, 500));
-      // }
-      
-      // // Now create the user client
-      // const userClient = await registerUserForXmtp();
-      // console.log('User XMTP client created successfully');
-      // console.log('User XMTP client inboxId:', userXmtpClient?.inboxId);
     } else if (window.ethereum) {
       // Fallback to MetaMask/injected provider if WalletConnect not available
       walletClient = createWalletClient({
@@ -827,23 +800,7 @@ async function connectWallet(): Promise<void> {
     // Create wallet client and update UI
     await createWalletClientWithAccount();
     updateWalletUI();
-    
-    // // Initialize XMTP client for notifications
-    // showStatus('Initializing secure messaging...', 'info');
-    // try {
-    //   if (!xmtpClient) {
-    //     xmtpClient = await initializeXmtp();
-    //     if (xmtpClient) {
-    //       console.log('XMTP client initialized successfully');
-    //       showStatus('Secure messaging initialized', 'success');
-    //     } else {
-    //       console.warn('Could not initialize XMTP client');
-    //     }
-    //   }
-    // } catch (xmtpError) {
-    //   console.error('Error initializing XMTP:', xmtpError);
-    //   // Don't fail wallet connection if XMTP fails
-    // }
+
     
     showStatus('Wallet connected successfully', 'success');
   } catch (err: any) {
@@ -951,9 +908,25 @@ async function executeQuote(quote: any): Promise<any> {
     // Send to offset team
     await sendXmtpMessagetoOffset(startMessage);
     
-    // Execute the quote
+    // Extra logging for the deposit object
+    console.log('Deposit object being sent:', {
+      ...quote.deposit
+    });
+
+    console.log('User address for executeQuote:', userAddress);
+
+    // Then create a wallet client with the account
+    const walletClientForQuote = createWalletClient({
+      account: userAddress as `0x${string}`,
+      chain: customBaseChain,  // Your chain configuration
+      transport: custom(window.ethereum)
+    });
+
+    console.log('Wallet client for quote:', walletClientForQuote);
+
+    
     const result = await acrossClient.executeQuote({
-      walletClient: walletClient,
+      walletClient: walletClientForQuote,
       deposit: quote.deposit,
       infiniteApproval: true,
       onProgress: (progress: any) => {
@@ -1251,190 +1224,6 @@ async function executeRetirement(): Promise<any> {
         <p><small>Your transaction will bridge from Base to Polygon and automatically retire carbon.</small></p>
       </div>
     `);
-    
-    // Manually approve token spending before executing the quote
-    showStatus('Approving USDC spending...', 'info');
-    try {
-      // Get the spokePoolAddress from the quote
-      console.log('Quote:', quote);
-      // The quote structure is different than expected - deposit is at the top level
-      const spokePoolAddress = quote.deposit.spokePoolAddress as `0x${string}`;
-      const inputAmount = quote.deposit.inputAmount;
-      console.log('Spoke pool address:', spokePoolAddress);
-      console.log('Input amount:', inputAmount);
-      
-      console.log(`Manually approving ${inputAmount} USDC to be spent by ${spokePoolAddress}`);
-      
-      // Create ERC20 ABI for approval
-      const erc20ABI = [
-        {
-          "inputs": [
-            { "name": "spender", "type": "address" },
-            { "name": "amount", "type": "uint256" }
-          ],
-          "name": "approve",
-          "outputs": [{ "name": "", "type": "bool" }],
-          "stateMutability": "nonpayable",
-          "type": "function"
-        }
-      ];
-      
-      // Encode the approval call
-      const approvalCalldata = encodeFunctionData({
-        abi: erc20ABI,
-        functionName: 'approve',
-        args: [spokePoolAddress, BigInt(inputAmount)]
-      });
-      console.log('Approval calldata:', approvalCalldata);
-      
-      // Send the approval transaction using ethereum provider directly
-      console.log('Sending approval transaction using ethereum provider directly...');
-      
-      let approvalTx;
-      if (window.ethereum) {
-        try {
-          // Use the ethereum provider directly
-          approvalTx = await window.ethereum.request({
-            method: 'eth_sendTransaction',
-            params: [{
-              from: userAddress,
-              to: USDC_BASE_ADDRESS,
-              data: approvalCalldata,
-            }],
-          });
-          console.log('Transaction sent via ethereum provider:', approvalTx);
-        } catch (error) {
-          console.error('Error sending via ethereum provider:', error);
-          throw error;
-        }
-      } else if (wcProvider && wcProvider.connected) {
-        try {
-          // Use WalletConnect provider directly
-          approvalTx = await wcProvider.request({
-            method: 'eth_sendTransaction',
-            params: [{
-              from: userAddress,
-              to: USDC_BASE_ADDRESS,
-              data: approvalCalldata,
-            }],
-          });
-          console.log('Transaction sent via WalletConnect provider:', approvalTx);
-        } catch (error) {
-          console.error('Error sending via WalletConnect provider:', error);
-          throw error;
-        }
-      } else {
-        throw new Error('No provider available for transaction');
-      }
-      
-      console.log('Approval transaction sent:', approvalTx);
-      showStatus('USDC approved! Now executing carbon retirement...', 'success');
-    } catch (error) {
-      console.error('Error approving token:', error);
-      showStatus('Failed to approve USDC. Please try again.', 'error');
-      return;
-    }
-
-
-    
-    // Manually execute the deposit transaction instead of using executeQuote
-    showStatus('Executing carbon retirement deposit...', 'info');
-
-    // try {
-    //   // Simulate deposit transaction to get the request object
-    //   const { request: simulateDepositTxRequest } =
-    //     await acrossClient.simulateDepositTx({
-    //       walletClient,
-    //       deposit: quote.deposit,
-    //     });
-    //   console.log("Simulation result:", simulateDepositTxRequest);
-      
-    //   // Try the alternative method: directly use walletClient.writeContract with the request
-    //   showStatus('Sending deposit transaction using writeContract...', 'info');
-      
-    //   try {
-    //     // Send the transaction using walletClient.writeContract
-    //     const transactionHash = await walletClient.writeContract(simulateDepositTxRequest);
-    //     console.log('Deposit transaction sent via writeContract:', transactionHash);
-        
-    //     showStatus('Carbon retirement deposit sent successfully!', 'success');
-        
-    //     // Get current block on destination chain
-    //     const destinationChainId = POLYGON_CHAIN_ID; // We know the destination is Polygon
-    //     const destinationBlock = await acrossClient
-    //       .getPublicClient(destinationChainId)
-    //       .getBlockNumber();
-    //     console.log('Current destination block:', destinationBlock);
-        
-    //     // Wait for deposit transaction to be mined
-    //     showStatus('Waiting for deposit transaction to be mined...', 'info');
-    //     const { depositTxReceipt, depositId } = await acrossClient.waitForDepositTx({
-    //       transactionHash,
-    //       originChainId: BASE_CHAIN_ID, // We know the origin is Base
-    //     });
-        
-    //     console.log('Deposit receipt:', depositTxReceipt);
-    //     console.log(`Deposit id #${depositId}`);
-        
-    //     showStatus(`Deposit confirmed! Waiting for funds to arrive on Polygon (Deposit ID: ${depositId})`, 'success');
-        
-    //     // Wait for fill transaction on destination chain
-    //     showStatus('Waiting for carbon retirement to complete on Polygon...', 'info');
-        
-    //     try {
-    //       const fillResult = await acrossClient.waitForFillTx({
-    //         depositId,
-    //         deposit: quote.deposit,
-    //         fromBlock: destinationBlock,
-    //       });
-          
-    //       if (fillResult) {
-    //         console.log('Fill tx timestamp:', fillResult.fillTxTimestamp);
-    //         console.log('Fill tx receipt:', fillResult.fillTxReceipt);
-            
-    //         // Create a result object with fill information
-    //         const result = {
-    //           transactionHash: transactionHash,
-    //           depositId: depositId,
-    //           fillTxReceipt: fillResult.fillTxReceipt,
-    //           fillTxTimestamp: fillResult.fillTxTimestamp
-    //         };
-            
-    //         showStatus('Carbon retirement completed successfully on Polygon!', 'success');
-            
-    //         // Show transaction details with both deposit and fill tx info
-    //         showResult(`
-    //           <div class="result-item">
-    //             <h3>Carbon Retirement Complete!</h3>
-    //             <p><b>Status:</b> Success</p>
-    //             <p><b>Deposit Transaction:</b> <a href='https://basescan.org/tx/${transactionHash}' target='_blank'>View on BaseScan</a></p>
-    //             <p><b>Fill Transaction:</b> <a href='https://polygonscan.com/tx/${fillResult.fillTxReceipt.transactionHash}' target='_blank'>View on PolygonScan</a></p>
-    //             <p><small>Your NFT receipt will be available at the beneficiary address.</small></p>
-    //           </div>
-    //         `);
-            
-    //         return result;
-    //       }
-    //     } catch (fillError) {
-    //       console.error('Error waiting for fill transaction:', fillError);
-    //       // Continue with basic result even if fill tracking fails
-    //     }
-        
-    //     // Create a basic result object if fill tracking fails
-    //     const result = {
-    //       transactionHash: transactionHash,
-    //       depositId: depositId,
-    //     };
-    //     console.log('writeContract deposit result:', result);
-        
-    //     return result;
-    //   } catch (writeError) {
-    //     console.error('Error using writeContract method:', writeError);
-    //     showStatus('Failed with writeContract method, falling back to executeQuote...', 'info');
-    //   }
-    // } catch (e) {
-    //   console.log("Deposit simulation error", e);
-    // }
     
     // Fall back to executeQuote if the alternative method fails
     showStatus('Executing quote with Across SDK...', 'info');
