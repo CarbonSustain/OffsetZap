@@ -167,6 +167,35 @@ async function deployklimadaoToPolygon() {
   };
 }
 
+async function deployVotingStorage() {
+  console.log("Deploying deployVotingStorage...");
+
+  const VotingStorage = await ethers.getContractFactory("VotingStorage");
+  console.log("VotingStorage 1 :", VotingStorage);
+  const votingStorage = await VotingStorage.deploy();
+  console.log("VotingStorage 2 :", votingStorage);
+  await votingStorage.waitForDeployment();
+  console.log("deployVotingStorage deployed at:", votingStorage);
+
+  const deployedAddress = votingStorage.target;
+
+  console.log("deployVotingStorage deployed at:", deployedAddress);
+
+  const abi = VotingStorage.interface.formatJson(); // Ethers v6 ABI formatting
+
+  // Optional: Save to disk
+  fs.writeFileSync(
+    path.join(__dirname, "VotingStorageDeployment.json"),
+    JSON.stringify({ address: deployedAddress, abi }, null, 2)
+  );
+
+  return {
+    address: deployedAddress,
+    abi,
+    contract: votingStorage,
+  };
+}
+
 async function main() {
   // const deployedAddress = await deployCarbonBridgeToBase();
   // console.log("deployCarbonBridgeToBase: deployedAddress", deployedAddress);
@@ -180,8 +209,11 @@ async function main() {
   // const deployedAddress = await deployToucanToPolygon();
   // console.log("deployToucanToPolygon: deployedAddress", deployedAddress);
 
-  const deployedAddress = await deployklimadaoToPolygon();
-  console.log("deployklimadaoToPolygon: deployedAddress", deployedAddress);
+  // const deployedAddress = await deployklimadaoToPolygon();
+  // console.log("deployklimadaoToPolygon: deployedAddress", deployedAddress);
+
+  const deployedAddress = await deployVotingStorage();
+  console.log("deployVotingStorage: deployedAddress", deployedAddress);
 }
 
 // Trigger the deployment

@@ -4,8 +4,7 @@ import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import { createAcrossClient, AcrossClient, DefaultLogger } from '@across-protocol/app-sdk';
 import { privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, encodeAbiParameters, decodeFunctionData } from "viem";
-import { Client, type Signer } from "@xmtp/browser-sdk"
-import type { Conversation, DecodedMessage, Identifier } from "@xmtp/browser-sdk"
+import { XmtpClient } from './xmtp-client'; // Import our new XMTP client wrapper
 
 // TypeScript declarations for window properties
 declare global {
@@ -25,12 +24,7 @@ const USDC_BASE_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${s
 const BASE_RPC_URL = 'https://base-mainnet.infura.io/v3/591c10e615c04ad5a783c9d6b44f0853';
 const POLYGON_RPC_URL = 'https://polygon-mainnet.infura.io/v3/591c10e615c04ad5a783c9d6b44f0853';
 
-// Create a custom HTTP transport that always uses our Infura RPC URLs
-function createInfuraHttpTransport(chainId: number) {
-  const rpcUrl = chainId === POLYGON_CHAIN_ID ? POLYGON_RPC_URL : BASE_RPC_URL;
-  console.log(`Creating HTTP transport for chain ${chainId} with RPC URL: ${rpcUrl}`);
-  return http(rpcUrl);
-}
+
 
 // DOM elements
 const connectWalletBtn = document.getElementById('connect-button') as HTMLButtonElement;
@@ -51,7 +45,6 @@ let userAddress: Address;
 let currentChainId: number;
 let wcProvider: EthereumProvider; // WalletConnect provider
 let acrossClient: any;
-let xmtpClient: Client | null = null; // Global XMTP client
 // Interface for retirement parameters
 interface RetirementParams {
   beneficiary: Address;
@@ -136,284 +129,93 @@ function hexToBytes(hexString: string): Uint8Array {
   return bytes;
 }
 
-// Initialize XMTP client using a dedicated notification wallet
+// Initialize XMTP backend connection
 async function initializeXmtp() {
   try {
-    // In production, you'd use a dedicated wallet for notifications
-    // For this example, we're using a hardcoded private key (with 0x prefix)
-    const notificationKey = "0x9c757d9a2c536fa5591a048d49fe31a982ce6bc44e2dc16ad4012caebe4f7ebe";
+    console.log("Checking XMTP backend service health...");
+    const isHealthy = await xmtpBackendClient.checkHealth();
     
-    if (!notificationKey) {
-      console.log("No notification wallet private key found. XMTP messages will be simulated.");
-      return null;
+    if (isHealthy) {
+      console.log("XMTP backend service is healthy and ready to use");
+      return true;
+    } else {
+      console.error("XMTP backend service is not available");
+      return false;
     }
-    
-    // Create viem account from private key
-    const account = privateKeyToAccount(notificationKey as `0x${string}`);
-    console.log("Using notification wallet address:", account.address);
-
-    // Create the identifier for the wallet
-    const accountIdentifier: Identifier = {
-      identifier: account.address.toLowerCase(), // Ensure lowercase for consistency
-      identifierKind: "Ethereum",
-    };
-    
-    // Create a proper EOA signer implementation according to XMTP docs
-    const signer: Signer = {
-      type: "EOA", // Specify we're using an Externally Owned Account
-      getIdentifier: async () => accountIdentifier,
-      signMessage: async (message: string): Promise<Uint8Array> => {
-        try {
-          console.log("Signing message with EOA wallet:", message.slice(0, 20) + "...");
-          // Sign with viem account and get hex string signature
-          const signature = await account.signMessage({ message });
-          // Convert hex signature to Uint8Array as required by XMTP
-          return hexToBytes(signature);
-        } catch (err) {
-          console.error('Error signing message with notification wallet:', err);
-          throw err;
-        }
-      }
-    };
-    
-    console.log("Creating XMTP client with EOA signer...");
-    // Create the XMTP client with our EOA signer
-    const client = await Client.create(signer, {
-      env: 'production', // Use production environment
-    });
-    
-    console.log("XMTP client initialized successfully with dedicated notification wallet");
-    console.log("Notification wallet address:", account.address);
-    console.log("XMTP inbox ID:", client.inboxId);
-    return client;
   } catch (error) {
-    console.error("Failed to initialize XMTP client:", error);
-    return null;
+    console.error("Failed to connect to XMTP backend service:", error);
+    return false;
   }
 }
 
-// Function to send XMTP message
-async function sendXmtpMessage(
-  xmtp: Client | null,
-  recipientAddress: string,
-  message: string
-): Promise<void> {
-  if (!xmtp) {
-    console.log(`SIMULATION - Would send to ${recipientAddress}: ${message}`);
-    return;
-  }
-  
+// Create a singleton instance of our XMTP client
+const xmtpBackendClient = new XmtpClient();
+
+// Function to send XMTP message via the backend service
+async function sendXmtpMessage(recipientAddress: string, message: string): Promise<void> {
   try {
-    // Create a proper Identifier object for the recipient with lowercase address
-    // @ts-ignore - Type issues with the XMTP browser SDK
-    const recipientId = { identifier: recipientAddress.toLowerCase(), identifierKind: "Ethereum" };
+    console.log(`Sending message to ${recipientAddress} via backend service...`);
     
-    // First check if the recipient can receive messages
-    let canReceiveMessages = false;
-    try {
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const canMessage = await Client.canMessage([recipientId]);
-      canReceiveMessages = !!(canMessage && canMessage.get(recipientAddress.toLowerCase()));
-      
-      if (!canReceiveMessages) {
-        console.log(`Recipient ${recipientAddress} cannot receive messages`);
-        return;
-      }
-    } catch (canMessageError) {
-      console.warn("Error checking if recipient can receive messages, continuing anyway:", canMessageError);
+    // Log the message details for debugging
+    console.log({
+      recipient: recipientAddress,
+      messageSummary: message.substring(0, 50) + (message.length > 50 ? '...' : '')
+    });
+    
+    // Send the message using our backend service
+    const result = await xmtpBackendClient.sendMessage(recipientAddress, message);
+    
+    if (result.success) {
+      console.log(`✅ Message successfully sent to ${recipientAddress}`);
+      // Display success message in UI
+      statusDiv.innerHTML += `<p>Message sent to ${recipientAddress.substring(0, 6)}...${recipientAddress.substring(recipientAddress.length - 4)} ✅</p>`;
+    } else {
+      console.error(`Failed to send message: ${result.error}`);
+      statusDiv.innerHTML += `<p class="error">Failed to send message: ${result.error}</p>`;
     }
-    
-    try {
-      // First try to get the conversation by inbox ID as shown in the logs
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const inboxId = Client.inboxId;
-      console.log(`Got inbox ID for ${recipientAddress}:`, inboxId);
-      
-      if (inboxId) {
-        try {
-          // @ts-ignore - Type issues with the XMTP browser SDK
-          const conversation = await xmtp.conversations.getDmByInboxId(inboxId);
-          if (conversation) {
-            console.log("Found conversation by inbox ID");
-            await conversation.send(message);
-            console.log(`Message sent to ${recipientAddress} using inbox ID`);
-            return;
-          }
-        } catch (inboxError) {
-          console.warn("Error getting conversation by inbox ID:", inboxError);
-        }
-      }
-      
-      // If inbox ID approach fails, try creating a new DM conversation
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const conversation = await xmtp.conversations.newDm(recipientId);
-      console.log("New conversation created successfully");
-      
-      // Send the message
-      await conversation.send(message);
-      console.log(`Message sent to ${recipientAddress}`);
-      return;
-    } catch (convError) {
-      console.warn("Could not create new DM conversation, trying alternative method", convError);
-    }
-    
-    // Fallback approach if the above doesn't work
-    try {
-      // From the test file, we can see we should try to get conversation by ID or list conversations
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const conversations = await xmtp.conversations.list();
-      console.log(`Found ${conversations.length} conversations, looking for matching one...`);
-      
-      // Look for an existing conversation with this recipient
-      for (const conv of conversations) {
-        try {
-          // Check if this is the right conversation by comparing peer address
-          // @ts-ignore - Type issues with the XMTP browser SDK
-          const peerAddress = conv.peerAddress?.toLowerCase?.() || '';
-          if (peerAddress === recipientAddress.toLowerCase()) {
-            console.log("Found existing conversation with recipient");
-            await conv.send(message);
-            console.log(`Message sent to ${recipientAddress} using existing conversation`);
-            return;
-          }
-        } catch (e) {
-          // Continue to next conversation
-        }
-      }
-      
-      // If we didn't find a matching conversation, try to create one again with sync
-      try {
-        await xmtp.conversations.sync();
-        // @ts-ignore - Type issues with the XMTP browser SDK
-        const conversation = await xmtp.conversations.newDm(recipientId);
-        await conversation.send(message);
-        console.log(`Message sent to ${recipientAddress} after sync`);
-        return;
-      } catch (syncError) {
-        console.warn("Failed to create conversation after sync", syncError);
-      }
-    } catch (listError) {
-      console.warn("Error listing conversations", listError);
-    }
-    
-    // If we couldn't send the message through any means
-    console.error(`Failed to send message to ${recipientAddress} after trying all methods`);
-    
-    console.log(`Message sent to ${recipientAddress}`);
   } catch (error) {
-    console.error(`Failed to send message to ${recipientAddress}:`, error);
+    console.error(`Error sending message to ${recipientAddress}:`, error);
+    statusDiv.innerHTML += `<p class="error">Failed to send message: ${error instanceof Error ? error.message : String(error)}</p>`;
   }
 }
 
 // Function to send XMTP message to the offset team wallet
-async function sendXmtpMessagetoOffset(
-  xmtp: Client | null,
-  message: string
-): Promise<void> {
-  // Use a hardcoded address for the offset team since process.env might not be available
-  const recipientAddress = process.env.REACT_APP_OFFSET_ADDRESS || '0xa8A5a8fC9336B0036c7a08606790c26b5bB65d00';
-  if (!xmtp) {
-    console.log(`SIMULATION - Would send to offset team at ${recipientAddress}: ${message}`);
-    return;
-  }
+async function sendXmtpMessagetoOffset(message: string): Promise<void> {
+  // Use a hardcoded address for the offset team
+  const recipientAddress = '0x24216b523E78BA06538b5EB50FA353075fFDC08c'; //'0xa8A5a8fC9336B0036c7a08606790c26b5bB65d00';
   
+  // Simply use the same function we created for sending messages
+  await sendXmtpMessage(recipientAddress, message);
+}
+
+// Function to send carbon retirement notification using structured data
+async function sendRetirementNotification(
+  recipientAddress: string, 
+  requestId: string | number, 
+  amount: string | number, 
+  status: 'initiated' | 'completed' | 'failed',
+  transactionHash?: string
+): Promise<void> {
   try {
-    // Create a proper Identifier object for the recipient with lowercase address
-    // @ts-ignore - Type issues with the XMTP browser SDK
-    const recipientId = { identifier: recipientAddress.toLowerCase(), identifierKind: "Ethereum" };
+    console.log(`Sending retirement notification to ${recipientAddress}...`);
     
-    // First check if the recipient can receive messages
-    let canReceiveMessages = false;
-    try {
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const canMessage = await Client.canMessage([recipientId]);
-      canReceiveMessages = !!(canMessage && canMessage.get(recipientAddress.toLowerCase()));
-      
-      if (!canReceiveMessages) {
-        console.log(`Offset team at ${recipientAddress} cannot receive messages`);
-        return;
-      }
-    } catch (canMessageError) {
-      console.warn("Error checking if offset team can receive messages, continuing anyway:", canMessageError);
+    // Send using the backend's structured notification endpoint
+    const result = await xmtpBackendClient.sendRetirementNotification({
+      recipientAddress,
+      requestId,
+      amount,
+      tokenSymbol: 'ETH', // Default to ETH
+      status,
+      transactionHash
+    });
+    
+    if (result.success) {
+      console.log(`✅ Retirement notification sent to ${recipientAddress}`);
+    } else {
+      console.error(`Failed to send retirement notification: ${result.error}`);
     }
-    
-    try {
-      // First try to get the conversation by inbox ID as shown in the logs
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const inboxId = Client.inboxId;
-      console.log(`Got inbox ID for offset team ${recipientAddress}:`, inboxId);
-      
-      if (inboxId) {
-        try {
-          // @ts-ignore - Type issues with the XMTP browser SDK
-          const conversation = await xmtp.conversations.getDmByInboxId(inboxId);
-          if (conversation) {
-            console.log("Found offset team conversation by inbox ID");
-            await conversation.send(message);
-            console.log(`Message sent to offset team at ${recipientAddress} using inbox ID`);
-            return;
-          }
-        } catch (inboxError) {
-          console.warn("Error getting offset team conversation by inbox ID:", inboxError);
-        }
-      }
-      
-      // If inbox ID approach fails, try creating a new DM conversation
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const conversation = await xmtp.conversations.newDm(recipientId);
-      console.log("New offset team conversation created successfully");
-      
-      // Send the message
-      await conversation.send(message);
-      console.log(`Message sent to offset team at ${recipientAddress}`);
-      return;
-    } catch (convError) {
-      console.warn("Could not create new DM conversation for offset team, trying alternative method", convError);
-    }
-    
-    // Fallback approach if the above doesn't work
-    try {
-      // From the test file, we can see we should try to get conversation by ID or list conversations
-      // @ts-ignore - Type issues with the XMTP browser SDK
-      const conversations = await xmtp.conversations.list();
-      console.log(`Found ${conversations.length} conversations, looking for offset team conversation...`);
-      
-      // Look for an existing conversation with this recipient
-      for (const conv of conversations) {
-        try {
-          // Check if this is the right conversation by comparing peer address
-          // @ts-ignore - Type issues with the XMTP browser SDK
-          const peerAddress = conv.peerAddress?.toLowerCase?.() || '';
-          if (peerAddress === recipientAddress.toLowerCase()) {
-            console.log("Found existing conversation with offset team");
-            await conv.send(message);
-            console.log(`Message sent to offset team at ${recipientAddress} using existing conversation`);
-            return;
-          }
-        } catch (e) {
-          // Continue to next conversation
-        }
-      }
-      
-      // If we didn't find a matching conversation, try to create one again with sync
-      try {
-        await xmtp.conversations.sync();
-        // @ts-ignore - Type issues with the XMTP browser SDK
-        const conversation = await xmtp.conversations.newDm(recipientId);
-        await conversation.send(message);
-        console.log(`Message sent to offset team at ${recipientAddress} after sync`);
-        return;
-      } catch (syncError) {
-        console.warn("Failed to create offset team conversation after sync", syncError);
-      }
-    } catch (listError) {
-      console.warn("Error listing conversations for offset team message", listError);
-    }
-    
-    // If we couldn't send the message through any means
-    console.error(`Failed to send message to offset team at ${recipientAddress} after trying all methods`);
   } catch (error) {
-    console.error(`Failed to send message to offset team at ${recipientAddress}:`, error);
+    console.error(`Error sending retirement notification:`, error);
   }
 }
 
@@ -711,10 +513,10 @@ async function init(): Promise<void> {
   //   chains: [base, polygon],
   // });
 
-  // Initialize XMTP client once and store globally
-  xmtpClient = await initializeXmtp();
-  console.log('Xmtp initialized successfully');
-  console.log('Xmtp client ready:', !!xmtpClient);
+  // Initialize connection to XMTP backend service
+  const xmtpInitialized = await initializeXmtp();
+  console.log('XMTP backend service connection initialized successfully');
+  console.log('XMTP backend service ready:', xmtpInitialized);
 }
 // Helper function to create wallet client with account
 async function createWalletClientWithAccount(): Promise<void> {
@@ -924,6 +726,25 @@ async function createWalletClientWithAccount(): Promise<void> {
     
       console.log('Across client created successfully');
       console.log('Across client:', client);
+
+      // // Before creating user client, close the notification client if it exists
+      // if (xmtpClient) {
+      //   console.log('Closing notification XMTP client before creating user client...');
+      //   await xmtpClient.close();
+      //   // Keep a reference to the notification client's inboxId if needed
+      //   const notificationInboxId = xmtpClient.inboxId;
+      //   // Reset the global variable
+      //   xmtpClient = null;
+      //   console.log('Notification client closed successfully');
+        
+      //   // Wait a brief moment
+      //   await new Promise(resolve => setTimeout(resolve, 500));
+      // }
+      
+      // // Now create the user client
+      // const userClient = await registerUserForXmtp();
+      // console.log('User XMTP client created successfully');
+      // console.log('User XMTP client inboxId:', userXmtpClient?.inboxId);
     } else if (window.ethereum) {
       // Fallback to MetaMask/injected provider if WalletConnect not available
       walletClient = createWalletClient({
@@ -1007,9 +828,21 @@ async function connectWallet(): Promise<void> {
     await createWalletClientWithAccount();
     updateWalletUI();
     
-    // // Share WalletConnect session with backend if available
-    // if (wcProvider && wcProvider.session) {
-    //   await shareWalletConnectSession(wcProvider.session);
+    // // Initialize XMTP client for notifications
+    // showStatus('Initializing secure messaging...', 'info');
+    // try {
+    //   if (!xmtpClient) {
+    //     xmtpClient = await initializeXmtp();
+    //     if (xmtpClient) {
+    //       console.log('XMTP client initialized successfully');
+    //       showStatus('Secure messaging initialized', 'success');
+    //     } else {
+    //       console.warn('Could not initialize XMTP client');
+    //     }
+    //   }
+    // } catch (xmtpError) {
+    //   console.error('Error initializing XMTP:', xmtpError);
+    //   // Don't fail wallet connection if XMTP fails
     // }
     
     showStatus('Wallet connected successfully', 'success');
@@ -1113,10 +946,10 @@ async function executeQuote(quote: any): Promise<any> {
     const startMessage = `OffsetZap Carbon Retirement Started:\n- Amount: ${quote.deposit.inputAmount} USDC\n- From: Base Network\n- To: Polygon Network\n- Timestamp: ${new Date().toISOString()}`;
     
     // Send to user
-    await sendXmtpMessage(xmtpClient, userAddress, startMessage);
+    await sendXmtpMessage(userAddress, startMessage);
     
     // Send to offset team
-    await sendXmtpMessagetoOffset(xmtpClient, startMessage);
+    await sendXmtpMessagetoOffset(startMessage);
     
     // Execute the quote
     const result = await acrossClient.executeQuote({
@@ -1186,12 +1019,12 @@ async function executeQuote(quote: any): Promise<any> {
               const completionMessage = `OffsetZap Carbon Retirement Completed Successfully!\n- Transaction: https://polygonscan.com/tx/${txReceipt.transactionHash}\n- Timestamp: ${new Date().toISOString()}\n- NFT receipt will be available at the beneficiary address.`;
               
               // Send to user
-              sendXmtpMessage(xmtpClient, userAddress, completionMessage).catch(err => {
+              sendXmtpMessage(userAddress, completionMessage).catch(err => {
                 console.error('Failed to send completion XMTP message to user:', err);
               });
               
               // Send to offset team
-              sendXmtpMessagetoOffset(xmtpClient, completionMessage).catch(err => {
+              sendXmtpMessagetoOffset(completionMessage).catch(err => {
                 console.error('Failed to send completion XMTP message to offset team:', err);
               });
             } else {
@@ -1205,7 +1038,7 @@ async function executeQuote(quote: any): Promise<any> {
             const errorNotification = `OffsetZap Carbon Retirement Error:\n- Error: ${errorMessage}\n- Step: Fill transaction\n- Timestamp: ${new Date().toISOString()}`;
             
             // Only send to offset team for monitoring
-            sendXmtpMessagetoOffset(xmtpClient, errorNotification).catch(err => {
+            sendXmtpMessagetoOffset(errorNotification).catch(err => {
               console.error('Failed to send error XMTP message:', err);
             });
           }
@@ -1336,11 +1169,30 @@ async function getQuote(amountStr: string, beneficiaryName: string, beneficiaryA
     // Send XMTP message about quote generation
     const quoteMessage = `OffsetZap Quote Generated:\n- Amount: ${amountStr} USDC\n- Beneficiary: ${beneficiaryName} (${beneficiaryAddress || userAddress})\n- Pool Token: ${poolToken}\n- Timestamp: ${new Date().toISOString()}`;
     
-    // Send to user
-    await sendXmtpMessage(xmtpClient, userAddress, quoteMessage);
-    
-    // Send to offset team
-    await sendXmtpMessagetoOffset(xmtpClient, quoteMessage);
+    try {
+      // Check if our XMTP backend service is available
+      const isHealthy = await xmtpBackendClient.checkHealth();
+      if (!isHealthy) {
+        console.log('XMTP backend service is not available. Skipping messaging.');
+        return quote;
+      }
+      
+      // Simply send messages directly through our backend service
+      console.log(`Sending quote notification to ${userAddress}`);
+      statusDiv.innerHTML += `<p>Sending quote details to your wallet...</p>`;
+      
+      // Send to user address
+      await sendXmtpMessage(userAddress, quoteMessage);
+      
+      // Send to offset team
+      await sendXmtpMessagetoOffset(quoteMessage);
+      
+      // Add success message
+      statusDiv.innerHTML += `<p>Quote details sent to your wallet and the OffsetZap team</p>`;
+    } catch (xmtpError) {
+      console.error("Error with XMTP messaging:", xmtpError);
+      // Don't fail the quote generation if messaging fails
+    }
     
     return quote;
   } catch (err: any) {
@@ -1593,19 +1445,56 @@ async function executeRetirement(): Promise<any> {
       // Show success message with transaction details
       if (result && result.transactionHash) {
         const txHash = result.transactionHash;
-      
-      showStatus('Carbon retirement initiated successfully!', 'success');
-      
-        // Show transaction details
+        showStatus('Carbon retirement initiated successfully!', 'success');
         showResult(`
-          <div class="result-item">
-            <h3>Carbon Retirement Initiated</h3>
-            <p><b>Status:</b> Bridging in progress</p>
-            <p><b>Transaction:</b> <a href='https://basescan.org/tx/${txHash}' target='_blank'>View on BaseScan</a></p>
-            <p><small>Your carbon retirement will be processed automatically once funds arrive on Polygon.</small></p>
+          <div class="mb-3">
+            <h4>🌳 Carbon Retirement Initiated!</h4>
+            <p>Your transaction has been submitted to the Base network.</p>
+            <p><strong>Transaction Hash:</strong> <a href="https://basescan.org/tx/${txHash}" target="_blank">${txHash.substring(0, 10)}...${txHash.substring(txHash.length - 8)}</a></p>
+            <p>Amount: ${depositAmount} USDC</p>
+            <p>Beneficiary: ${beneficiaryName || userAddress}</p>
             <p><small>You'll receive an NFT receipt at the beneficiary address when the process completes.</small></p>
           </div>
         `);
+        
+        // Send XMTP message about the carbon retirement if client is initialized
+        try {
+          // Check health of the XMTP backend service
+          const isHealthy = await xmtpBackendClient.checkHealth();
+          
+          if (!isHealthy) {
+            console.log('XMTP backend service is not available. Skipping messaging.');
+            return;
+          }
+          
+          // Create a detailed message about the retirement
+          const xmtpMessage = `
+🌳 Carbon Retirement Initiated!
+
+Amount: ${depositAmount} USDC
+Beneficiary: ${beneficiaryName || 'OffsetZap User'}
+Transaction: https://basescan.org/tx/${txHash}
+
+Your carbon retirement is being processed and will complete automatically once funds arrive on Polygon.
+Thank you for your contribution to a more sustainable future!
+`;
+          
+          // Send message to the user
+          showStatus('Sending confirmation message to your wallet...', 'info');
+          await sendXmtpMessage(userAddress, xmtpMessage);
+          
+          // Optionally send message to the Offset team
+          const notifyOffset = true; // This could be a checkbox in the UI
+          if (notifyOffset) {
+            showStatus('Notifying Offset team about your retirement...', 'info');
+            await sendXmtpMessagetoOffset(`New carbon retirement by ${beneficiaryName || 'OffsetZap User'} for ${depositAmount} USDC`);
+          }
+          
+          showStatus('Carbon retirement initiated successfully!', 'success');
+        } catch (messagingError) {
+          console.error('Error sending XMTP messages:', messagingError);
+          // Don't fail the whole process if messaging fails
+        }
       } else {
         showStatus('Carbon retirement initiated. Check your wallet for transaction details.', 'success');
       }

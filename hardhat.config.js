@@ -62,5 +62,23 @@ module.exports = {
       accounts: [`0x${process.env.PRIVATE_KEY}`],
       chainId: 44787,
     },
+    // Hedera Mainnet
+    hederaMainnet: {
+      url: process.env.HEDERA_MAINNET_RPC_URL,
+      accounts: [`${process.env.PRIVATE_KEY_HEDERA}`],
+      chainId: 295,
+    },
+    // Hedera Testnet
+    hederaTestnet: {
+      url: process.env.HEDERA_TESTNET_RPC_URL,
+      accounts: [`${process.env.PRIVATE_KEY_HEDERA}`],
+      chainId: 296,
+    },
+    // Hedera Previewnet
+    hederaPreviewnet: {
+      url: process.env.HEDERA_PREVIEWNET_RPC_URL,
+      accounts: [`${process.env.PRIVATE_KEY_HEDERA}`],
+      chainId: 297,
+    },
   },
 };
