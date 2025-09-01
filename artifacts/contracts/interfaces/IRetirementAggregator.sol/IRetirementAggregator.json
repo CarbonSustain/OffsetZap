@@ -1,0 +1,123 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IRetirementAggregator",
+  "sourceName": "contracts/interfaces/IRetirementAggregator.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_index",
+          "type": "uint256"
+        }
+      ],
+      "name": "getRetirementDetails",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "retiringAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "beneficiaryAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "beneficiaryString",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "retirementMessage",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "carbonPool",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_poolToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_beneficiaryAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_beneficiaryString",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_retirementMessage",
+          "type": "string"
+        }
+      ],
+      "name": "retire",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ICarbonPool",
+          "name": "_pool",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_klimaAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_beneficiaryAddress",
+          "type": "address"
+        }
+      ],
+      "name": "retireExactCarbon",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

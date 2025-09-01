@@ -13,6 +13,9 @@ async function main() {
   
   // Get signer for transactions
   const [owner] = await ethers.getSigners();
+
+  // const privateKey = process.env.PRIVATE_KEY;
+  // const owner = new ethers.Wallet(privateKey, ethers.provider);
   
   // Create contract instance
   const votingStorage = new ethers.Contract(

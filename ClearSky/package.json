@@ -1,0 +1,32 @@
+{
+  "name": "clearsky-liquidity-pool",
+  "version": "1.0.0",
+  "description": "ClearSky Liquidity Pool on Hedera with HTS LP tokens",
+  "main": "createClearSkyLPToken.js",
+  "type": "module",
+  "scripts": {
+    "start": "node createClearSkyLPToken.js",
+    "test": "node testLiquidityPool.js",
+    "deploy": "node deployPool.js"
+  },
+  "keywords": [
+    "hedera",
+    "liquidity-pool",
+    "hts",
+    "clearsky",
+    "defi"
+  ],
+  "author": "ClearSky Team",
+  "license": "MIT",
+  "dependencies": {
+    "@hashgraph/sdk": "^2.69.0",
+    "@openzeppelin/contracts": "^5.3.0",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "hardhat": "^2.24.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
+    "ethers": "^6.8.1"
+  }
+} 
