@@ -62,16 +62,10 @@ async function deployClearSkyPool() {
     const { abi, bytecode } = contractArtifact;
     
     // Contract parameters - convert HTS IDs to EVM addresses
-    const usdcTokenAddress = htsToEvmAddress(process.env.USDC_TOKEN_ADDRESS);
     const lpTokenAddress = htsToEvmAddress(lpTokenId); // HTS token ID
     const ownerAddress = wallet.address;
     
-    if (!usdcTokenAddress) {
-      throw new Error("Missing USDC_TOKEN_ADDRESS in .env file");
-    }
-    
     console.log("📋 Deployment Parameters:");
-    console.log(`USDC Token: ${usdcTokenAddress}`);
     console.log(`LP Token: ${lpTokenAddress}`);
     console.log(`Owner: ${ownerAddress}`);
     console.log(`Network: ${network}`);
@@ -81,7 +75,6 @@ async function deployClearSkyPool() {
     const factory = new ethers.ContractFactory(abi, bytecode, wallet);
     
     const poolContract = await factory.deploy(
-      usdcTokenAddress,
       lpTokenAddress,
       ownerAddress
     );
@@ -98,7 +91,6 @@ async function deployClearSkyPool() {
     const deploymentInfo = {
       network: network,
       poolAddress: poolAddress,
-      usdcToken: usdcTokenAddress,
       lpToken: lpTokenAddress,
       owner: ownerAddress,
       deployedAt: new Date().toISOString(),
@@ -112,7 +104,7 @@ async function deployClearSkyPool() {
     // Verify contract on Hedera
     console.log("\n🔍 Verifying contract...");
     try {
-      await verifyContract(poolAddress, [usdcTokenAddress, lpTokenAddress, ownerAddress], network);
+      await verifyContract(poolAddress, [lpTokenAddress, ownerAddress], network);
       console.log("✅ Contract verified successfully!");
     } catch (error) {
       console.log("⚠️ Contract verification failed:", error.message);

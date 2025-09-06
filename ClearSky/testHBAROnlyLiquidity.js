@@ -63,47 +63,80 @@ async function testHBAROnlyLiquidity() {
       return false;
     }
     
-    // For HBAR-only liquidity, we need to modify the approach
-    // The current contract expects both USDC and HBAR, but we can test the HBAR transfer
+    // Now use the NEW flexible addLiquidity function for HBAR-only!
+    console.log("\n🌊 Testing HBAR-Only Liquidity with NEW Flexible Function...");
+    console.log(`This will add ${ethers.formatEther(hbarAmount)} HBAR to the pool and mint LP tokens!`);
     
-    console.log("\n🧪 Testing HBAR Transfer to Pool...");
-    console.log(`This will send ${ethers.formatEther(hbarAmount)} HBAR to the pool contract`);
+    // Calculate expected LP tokens for HBAR-only
+    const expectedLPTokens = await poolContract.calculateLPTokens(0, hbarAmount);
+    console.log(`📊 Expected LP Tokens: ${ethers.formatUnits(expectedLPTokens, 6)} CSLP`);
     
-    // Send HBAR directly to the pool contract (this tests the contract can receive HBAR)
-    const sendHBARTx = await wallet.sendTransaction({
-      to: poolAddress,
-      value: hbarAmount
-    });
+    // Apply slippage tolerance (5% buffer)
+    const slippageBps = 500; // 5%
+    const minLPTokens = expectedLPTokens * BigInt(10000 - slippageBps) / BigInt(10000);
+    console.log(`📊 Min LP Tokens (with 5% slippage): ${ethers.formatUnits(minLPTokens, 6)} CSLP`);
     
-    console.log(`HBAR Transfer Transaction: ${sendHBARTx.hash}`);
-    console.log("⏳ Waiting for transaction confirmation...");
-    
-    const receipt = await sendHBARTx.wait();
-    console.log("✅ HBAR sent to pool contract successfully!");
-    console.log(`Gas Used: ${receipt.gasUsed.toString()}`);
-    
-    // Check pool's HBAR balance
-    console.log("\n📊 Checking Pool's HBAR Balance...");
-    const poolHBARBalance = await provider.getBalance(poolAddress);
-    console.log(`Pool HBAR Balance: ${ethers.formatEther(poolHBARBalance)} HBAR`);
-    
-    // Check if the pool received the HBAR
-    if (poolHBARBalance >= hbarAmount) {
-      console.log("✅ Pool successfully received HBAR!");
-    } else {
-      console.log("❌ Pool did not receive the expected HBAR amount");
+    console.log("DEBUG: totalUSDC", await poolContract.totalUSDC());
+    console.log("DEBUG: totalHBAR", await poolContract.totalHBAR());
+    console.log("DEBUG: totalLPTokens", await poolContract.totalLPTokens());
+    console.log("DEBUG: expectedLPTokens", expectedLPTokens.toString());
+    console.log("DEBUG: minLPTokens", minLPTokens.toString());
+
+    try {
+      await poolContract.addLiquidity.staticCall(
+        0,
+        expectedLPTokens,
+        { value: hbarAmount }
+      );
+      console.log("✅ Simulation passed, should succeed");
+    } catch (e) {
+      console.error("❌ Simulation failed, revert reason:", e);
     }
     
-    console.log("\n🎉 HBAR-Only Test Completed!");
-    console.log("Pool can receive HBAR transactions!");
+
+    // Add HBAR-only liquidity using the new flexible function
+    const addLiquidityTx = await poolContract.addLiquidity(
+      0, // 0 USDC
+      minLPTokens, // minLPTokens with slippage tolerance
+      { value: hbarAmount } // HBAR amount
+    );
     
-    // Note: This doesn't mint LP tokens because the contract expects both USDC and HBAR
-    // But it proves the pool can receive HBAR and handle transactions
+    console.log(`HBAR-Only Liquidity Transaction: ${addLiquidityTx.hash}`);
+    console.log("⏳ Waiting for transaction confirmation...");
+    
+    const receipt = await addLiquidityTx.wait();
+    console.log("✅ HBAR-only liquidity added successfully!");
+    console.log(`Gas Used: ${receipt.gasUsed.toString()}`);
+    
+    // Check pool's updated state
+    console.log("\n📊 Updated Pool State:");
+    const newTotalUSDC = await poolContract.totalUSDC();
+    const newTotalHBAR = await poolContract.totalHBAR();
+    const newTotalLPTokens = await poolContract.totalLPTokens();
+    
+    console.log(`Total USDC: ${ethers.formatUnits(newTotalUSDC, 6)} USDC`);
+    console.log(`Total HBAR: ${ethers.formatEther(newTotalHBAR)} HBAR`);
+    console.log(`Total LP Tokens: ${ethers.formatUnits(newTotalLPTokens, 6)} CSLP`);
+    
+    // Check your LP token balance
+    const lpToken = new ethers.Contract(
+      deploymentInfo.lpToken,
+      ["function balanceOf(address account) external view returns (uint256)"],
+      wallet
+    );
+    
+    const yourLPBalance = await lpToken.balanceOf(wallet.address);
+    console.log(`Your LP Balance: ${ethers.formatUnits(yourLPBalance, 6)} CSLP`);
+    
+    console.log("\n🎉 HBAR-Only Liquidity Test Completed!");
+    console.log("✅ Pool successfully accepted HBAR-only liquidity!");
+    console.log("✅ LP tokens were minted to your wallet!");
+    console.log("✅ The new flexible functionality is working!");
     
     return true;
     
   } catch (error) {
-    console.error("❌ HBAR-Only Test Failed:", error);
+    console.error("❌ HBAR-Only Liquidity Test Failed:", error);
     throw error;
   }
 }
@@ -133,8 +166,8 @@ if (importPath === scriptPath) {
   console.log("✅ Condition is TRUE - Running main execution...");
   testHBAROnlyLiquidity()
     .then(() => {
-      console.log("\n🎉 HBAR-Only Test Completed!");
-      console.log("Pool can receive HBAR transactions!");
+      console.log("\n🎉 HBAR-Only Liquidity Test Completed!");
+      console.log("Pool now supports flexible input!");
     })
     .catch((error) => {
       console.error("Failed to test HBAR-only liquidity:", error);

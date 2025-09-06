@@ -6,7 +6,7 @@ dotenv.config();
 
 async function testRealLiquidity() {
   try {
-    console.log("🌊 Testing Real Liquidity Provision to ClearSky Pool...");
+    console.log("🌊 Testing Real Flexible Liquidity Provision to ClearSky Pool...");
     
     // Load deployment info
     const deploymentInfo = JSON.parse(fs.readFileSync('clearsky-pool-deployment.json', 'utf8'));
@@ -67,67 +67,103 @@ async function testRealLiquidity() {
     console.log(`HBAR Balance: ${ethers.formatEther(hbarBalance)} HBAR`);
     console.log(`USDC Balance: ${ethers.formatUnits(usdcBalance, 6)} USDC`);
     
-    // Test amounts (small amounts for testing)
-    const usdcAmount = ethers.parseUnits("1", 6); // 1 USDC
-    const hbarAmount = ethers.parseEther("0.001"); // 0.001 HBAR
+    // Test different liquidity scenarios
+    console.log("\n🧪 Testing Different Liquidity Scenarios:");
     
-    console.log(`\n🧪 Test Liquidity Amounts:`);
-    console.log(`USDC: ${ethers.formatUnits(usdcAmount, 6)} USDC`);
-    console.log(`HBAR: ${ethers.formatEther(hbarAmount)} HBAR`);
+    // Scenario 1: HBAR-only liquidity (no USDC required!)
+    console.log("\n🌊 Scenario 1: HBAR-Only Liquidity");
+    const hbarAmount = ethers.parseEther("0.01"); // 0.01 HBAR
     
-    // Check if we have enough tokens
-    if (usdcBalance < usdcAmount) {
-      console.log(`❌ Insufficient USDC: Need ${ethers.formatUnits(usdcAmount, 6)} USDC, have ${ethers.formatUnits(usdcBalance, 6)} USDC`);
-      console.log(`💡 Get testnet USDC from Hedera faucet or bridge`);
-      return false;
-    }
-    
-    if (hbarBalance < hbarAmount) {
-      console.log(`❌ Insufficient HBAR: Need ${ethers.formatEther(hbarAmount)} HBAR, have ${ethers.formatEther(hbarBalance)} HBAR`);
-      console.log(`💡 Get testnet HBAR from Hedera faucet`);
-      return false;
-    }
-    
-    // Check USDC allowance
-    console.log("\n🔐 Checking USDC Approval...");
-    const currentAllowance = await usdcToken.allowance(wallet.address, poolAddress);
-    console.log(`Current Allowance: ${ethers.formatUnits(currentAllowance, 6)} USDC`);
-    
-    if (currentAllowance < usdcAmount) {
-      console.log("📝 Approving USDC spending...");
-      const approveTx = await usdcToken.approve(poolAddress, usdcAmount);
-      console.log(`Approval Transaction: ${approveTx.hash}`);
+    if (hbarBalance >= hbarAmount) {
+      console.log(`✅ HBAR balance sufficient: ${ethers.formatEther(hbarAmount)} HBAR`);
       
-      console.log("⏳ Waiting for approval confirmation...");
-      await approveTx.wait();
-      console.log("✅ USDC approval confirmed!");
+      // Calculate expected LP tokens for HBAR-only
+      const hbarOnlyLPTokens = await poolContract.calculateLPTokens(0, hbarAmount);
+      console.log(`📊 Expected LP Tokens: ${ethers.formatUnits(hbarOnlyLPTokens, 6)} CSLP`);
+      
+      // Apply slippage tolerance (1% buffer)
+      const hbarSlippageBps = 100; // 1%
+      const hbarMinLPTokens = hbarOnlyLPTokens * BigInt(10000 - hbarSlippageBps) / BigInt(10000);
+      console.log(`📊 Min LP Tokens (with 1% slippage): ${ethers.formatUnits(hbarMinLPTokens, 6)} CSLP`);
+      
+      // Add HBAR-only liquidity
+      console.log("\n🌊 Adding HBAR-Only Liquidity...");
+      const addHbarLiquidityTx = await poolContract.addLiquidity(
+        0, // 0 USDC
+        hbarMinLPTokens, // minLPTokens with slippage tolerance
+        { value: hbarAmount } // HBAR amount
+      );
+      
+      console.log(`HBAR-Only Liquidity Transaction: ${addHbarLiquidityTx.hash}`);
+      console.log("⏳ Waiting for transaction confirmation...");
+      
+      const hbarReceipt = await addHbarLiquidityTx.wait();
+      console.log("✅ HBAR-only liquidity added successfully!");
+      console.log(`Gas Used: ${hbarReceipt.gasUsed.toString()}`);
+      
     } else {
-      console.log("✅ USDC already approved!");
+      console.log(`❌ Insufficient HBAR: Need ${ethers.formatEther(hbarAmount)} HBAR, have ${ethers.formatEther(hbarBalance)} HBAR`);
     }
     
-    // Calculate expected LP tokens
-    console.log("\n🧮 Calculating Expected LP Tokens...");
-    const expectedLPTokens = await poolContract.calculateLPTokens(usdcAmount, hbarAmount);
-    console.log(`Expected LP Tokens: ${ethers.formatUnits(expectedLPTokens, 6)} CSLP`);
+    // Scenario 2: USDC-only liquidity (if USDC available)
+    if (usdcBalance > 0) {
+      console.log("\n🌊 Scenario 2: USDC-Only Liquidity");
+      const usdcAmount = ethers.parseUnits("1", 6); // 1 USDC
+      
+      if (usdcBalance >= usdcAmount) {
+        console.log(`✅ USDC balance sufficient: ${ethers.formatUnits(usdcAmount, 6)} USDC`);
+        
+        // Check USDC allowance
+        console.log("\n🔐 Checking USDC Approval...");
+        const currentAllowance = await usdcToken.allowance(wallet.address, poolAddress);
+        console.log(`Current Allowance: ${ethers.formatUnits(currentAllowance, 6)} USDC`);
+        
+        if (currentAllowance < usdcAmount) {
+          console.log("📝 Approving USDC spending...");
+          const approveTx = await usdcToken.approve(poolAddress, usdcAmount);
+          console.log(`Approval Transaction: ${approveTx.hash}`);
+          
+          console.log("⏳ Waiting for approval confirmation...");
+          await approveTx.wait();
+          console.log("✅ USDC approval confirmed!");
+        } else {
+          console.log("✅ USDC already approved!");
+        }
+        
+        // Calculate expected LP tokens for USDC-only
+        const usdcOnlyLPTokens = await poolContract.calculateLPTokens(usdcAmount, 0);
+        console.log(`📊 Expected LP Tokens: ${ethers.formatUnits(usdcOnlyLPTokens, 6)} CSLP`);
+        
+        // Apply slippage tolerance (1% buffer)
+        const usdcSlippageBps = 100; // 1%
+        const usdcMinLPTokens = usdcOnlyLPTokens * BigInt(10000 - usdcSlippageBps) / BigInt(10000);
+        console.log(`📊 Min LP Tokens (with 1% slippage): ${ethers.formatUnits(usdcMinLPTokens, 6)} CSLP`);
+        
+        // Add USDC-only liquidity
+        console.log("\n🌊 Adding USDC-Only Liquidity...");
+        const addUsdcLiquidityTx = await poolContract.addLiquidity(
+          usdcAmount, // USDC amount
+          usdcMinLPTokens, // minLPTokens with slippage tolerance
+          { value: 0 } // 0 HBAR
+        );
+        
+        console.log(`USDC-Only Liquidity Transaction: ${addUsdcLiquidityTx.hash}`);
+        console.log("⏳ Waiting for transaction confirmation...");
+        
+        const usdcReceipt = await addUsdcLiquidityTx.wait();
+        console.log("✅ USDC-only liquidity added successfully!");
+        console.log(`Gas Used: ${usdcReceipt.gasUsed.toString()}`);
+        
+      } else {
+        console.log(`❌ Insufficient USDC: Need ${ethers.formatUnits(usdcAmount, 6)} USDC, have ${ethers.formatUnits(usdcBalance, 6)} USDC`);
+      }
+    } else {
+      console.log("\n🌊 Scenario 2: USDC-Only Liquidity");
+      console.log("⏳ Skipping USDC test - no USDC balance available");
+      console.log("💡 Get testnet USDC from Hedera faucet to test this scenario");
+    }
     
-    // Add liquidity
-    console.log("\n🌊 Adding Liquidity to Pool...");
-    console.log(`This will send ${ethers.formatUnits(usdcAmount, 6)} USDC and ${ethers.formatEther(hbarAmount)} HBAR to the pool`);
-    
-    const addLiquidityTx = await poolContract.addLiquidity(
-      usdcAmount,
-      expectedLPTokens, // minLPTokens (slippage protection)
-      { value: hbarAmount } // HBAR amount
-    );
-    
-    console.log(`Liquidity Transaction: ${addLiquidityTx.hash}`);
-    console.log("⏳ Waiting for transaction confirmation...");
-    
-    const receipt = await addLiquidityTx.wait();
-    console.log("✅ Liquidity added successfully!");
-    console.log(`Gas Used: ${receipt.gasUsed.toString()}`);
-    
-    // Check new pool state
+    // Check updated pool state
     console.log("\n📊 Updated Pool State:");
     const newTotalUSDC = await poolContract.totalUSDC();
     const newTotalHBAR = await poolContract.totalHBAR();
@@ -147,13 +183,14 @@ async function testRealLiquidity() {
     const yourLPBalance = await lpToken.balanceOf(wallet.address);
     console.log(`Your LP Balance: ${ethers.formatUnits(yourLPBalance, 6)} CSLP`);
     
-    console.log("\n🎉 Real Liquidity Test Completed Successfully!");
-    console.log("Your ClearSky liquidity pool is now live with real liquidity!");
+    console.log("\n🎉 Flexible Liquidity Test Completed Successfully!");
+    console.log("Your ClearSky liquidity pool now supports flexible input!");
+    console.log("Users can add USDC-only, HBAR-only, or both!");
     
     return true;
     
   } catch (error) {
-    console.error("❌ Real Liquidity Test Failed:", error);
+    console.error("❌ Flexible Liquidity Test Failed:", error);
     throw error;
   }
 }
@@ -183,11 +220,11 @@ if (importPath === scriptPath) {
   console.log("✅ Condition is TRUE - Running main execution...");
   testRealLiquidity()
     .then(() => {
-      console.log("\n🎉 Real Liquidity Test Completed!");
-      console.log("Pool is now live with real liquidity!");
+      console.log("\n🎉 Flexible Liquidity Test Completed!");
+      console.log("Pool now supports flexible input!");
     })
     .catch((error) => {
-      console.error("Failed to test real liquidity:", error);
+      console.error("Failed to test flexible liquidity:", error);
       process.exit(1);
     });
 } else {

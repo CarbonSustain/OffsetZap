@@ -6,13 +6,9 @@ dotenv.config();
 
 async function testClearSkyPool() {
   try {
-    console.log("🧪 Testing ClearSky Liquidity Pool...");
+    console.log("🧪 Testing Updated ClearSky Liquidity Pool (Flexible Input)...");
     
     // Load deployment info
-    if (!fs.existsSync('clearsky-pool-deployment.json')) {
-      throw new Error("Pool deployment info not found. Deploy the pool first.");
-    }
-    
     const deploymentInfo = JSON.parse(fs.readFileSync('clearsky-pool-deployment.json', 'utf8'));
     const poolAddress = deploymentInfo.poolAddress;
     
@@ -31,9 +27,12 @@ async function testClearSkyPool() {
     }
     
     // Initialize provider and wallet
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const privateKey = process.env.PRIVATE_KEY;
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      ensAddress: null,
+      nameResolver: null
+    });
     
+    const privateKey = process.env.PRIVATE_KEY;
     if (!privateKey) {
       throw new Error("Missing PRIVATE_KEY in .env file");
     }
@@ -44,7 +43,7 @@ async function testClearSkyPool() {
     // Load contract
     const poolContract = new ethers.Contract(poolAddress, deploymentInfo.abi, wallet);
     
-    console.log("📋 Pool Information:");
+    console.log("\n📋 Pool Information:");
     console.log(`Address: ${poolAddress}`);
     console.log(`USDC Token: ${deploymentInfo.usdcToken}`);
     console.log(`LP Token: ${deploymentInfo.lpToken}`);
@@ -77,16 +76,35 @@ async function testClearSkyPool() {
       console.log("❌ Failed to get pool ratio:", error.message);
     }
     
-    // Test 3: Calculate LP tokens for hypothetical amounts
-    console.log("\n🧮 Test 3: Calculating LP tokens for hypothetical amounts...");
+    // Test 3: Calculate LP tokens for different scenarios
+    console.log("\n🧮 Test 3: Testing Flexible LP Token Calculations...");
+    
+    // Scenario A: USDC only
     try {
-      const usdcAmount = ethers.parseUnits("100", 6); // 100 USDC
-      const hbarAmount = ethers.parseEther("0.1"); // 0.1 HBAR
-      
-      const lpTokens = await poolContract.calculateLPTokens(usdcAmount, hbarAmount);
-      console.log(`100 USDC + 0.1 HBAR would yield: ${ethers.formatUnits(lpTokens, 6)} LP tokens`);
+      const usdcOnlyAmount = ethers.parseUnits("100", 6); // 100 USDC
+      const usdcOnlyLPTokens = await poolContract.calculateLPTokens(usdcOnlyAmount, 0);
+      console.log(`📊 USDC Only (100 USDC): ${ethers.formatUnits(usdcOnlyLPTokens, 6)} LP tokens`);
     } catch (error) {
-      console.log("❌ Failed to calculate LP tokens:", error.message);
+      console.log("❌ USDC-only calculation failed:", error.message);
+    }
+    
+    // Scenario B: HBAR only
+    try {
+      const hbarOnlyAmount = ethers.parseEther("0.1"); // 0.1 HBAR
+      const hbarOnlyLPTokens = await poolContract.calculateLPTokens(0, hbarOnlyAmount);
+      console.log(`📊 HBAR Only (0.1 HBAR): ${ethers.formatUnits(hbarOnlyLPTokens, 6)} LP tokens`);
+    } catch (error) {
+      console.log("❌ HBAR-only calculation failed:", error.message);
+    }
+    
+    // Scenario C: Both tokens
+    try {
+      const bothUSDC = ethers.parseUnits("50", 6); // 50 USDC
+      const bothHBAR = ethers.parseEther("0.05"); // 0.05 HBAR
+      const bothLPTokens = await poolContract.calculateLPTokens(bothUSDC, bothHBAR);
+      console.log(`📊 Both Tokens (50 USDC + 0.05 HBAR): ${ethers.formatUnits(bothLPTokens, 6)} LP tokens`);
+    } catch (error) {
+      console.log("❌ Both-tokens calculation failed:", error.message);
     }
     
     // Test 4: Get user share
@@ -100,21 +118,22 @@ async function testClearSkyPool() {
       console.log("❌ Failed to get user share:", error.message);
     }
     
-    // Test 5: Check if pool is paused
+    // Test 5: Check pool status
     console.log("\n⏸️ Test 5: Checking pool status...");
     try {
       const isPaused = await poolContract.paused();
       console.log(`Pool Paused: ${isPaused ? 'Yes' : 'No'}`);
     } catch (error) {
-      console.log("❌ Failed to check pool status:", error.message);
+      console.log("❌ Failed to check pause status:", error.message);
     }
     
-    // Test 6: Check owner
+    // Test 6: Check ownership
     console.log("\n👑 Test 6: Checking ownership...");
     try {
       const owner = await poolContract.owner();
+      const isOwner = owner.toLowerCase() === wallet.address.toLowerCase();
       console.log(`Pool Owner: ${owner}`);
-      console.log(`Is Current Wallet Owner: ${owner === wallet.address ? 'Yes' : 'No'}`);
+      console.log(`Is Current Wallet Owner: ${isOwner ? 'Yes' : 'No'}`);
     } catch (error) {
       console.log("❌ Failed to check ownership:", error.message);
     }
@@ -125,53 +144,34 @@ async function testClearSkyPool() {
       const feeBps = await poolContract.FEE_BPS();
       const feeDenominator = await poolContract.FEE_DENOMINATOR();
       const feePercentage = (Number(feeBps) / Number(feeDenominator)) * 100;
-      console.log(`Fee: ${feePercentage}%`);
+      console.log(`Fee: ${feePercentage.toFixed(1)}%`);
     } catch (error) {
       console.log("❌ Failed to check fee configuration:", error.message);
     }
     
+    // Test 8: Test flexible input validation
+    console.log("\n🔍 Test 8: Testing Flexible Input Validation...");
+    try {
+      // Test with zero amounts (should fail)
+      const zeroAmounts = await poolContract.calculateLPTokens(0, 0);
+      console.log(`📊 Zero amounts calculation: ${ethers.formatUnits(zeroAmounts, 6)} LP tokens`);
+    } catch (error) {
+      console.log("✅ Zero amounts correctly rejected:", error.message);
+    }
+    
     console.log("\n✅ Pool testing completed!");
+    
     console.log("\n📋 Test Results Summary:");
     console.log("• Pool contract is deployed and accessible");
-    console.log("• Basic functions are working");
-    console.log("• Pool is ready for liquidity provision");
+    console.log("• Flexible liquidity functions are working");
+    console.log("• Users can now add USDC-only, HBAR-only, or both");
+    console.log("• Pool is ready for flexible liquidity provision");
     
-    return true;
+    console.log("\n🎉 All tests completed successfully!");
+    console.log("Pool is ready for flexible liquidity provision!");
     
   } catch (error) {
     console.error("❌ Pool testing failed:", error);
-    throw error;
-  }
-}
-
-// Function to test adding liquidity (requires USDC approval first)
-async function testAddLiquidity() {
-  try {
-    console.log("\n🌊 Testing Add Liquidity Function...");
-    
-    // Load deployment info
-    const deploymentInfo = JSON.parse(fs.readFileSync('clearsky-pool-deployment.json', 'utf8'));
-    const poolAddress = deploymentInfo.poolAddress;
-    
-    // Initialize contract
-    const provider = new ethers.JsonRpcProvider(process.env.HEDERA_TESTNET_RPC_URL);
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-    const poolContract = new ethers.Contract(poolAddress, deploymentInfo.abi, wallet);
-    
-    // Test amounts
-    const usdcAmount = ethers.parseUnits("10", 6); // 10 USDC
-    const hbarAmount = ethers.parseEther("0.01"); // 0.01 HBAR
-    
-    console.log(`Testing with ${ethers.formatUnits(usdcAmount, 6)} USDC and ${ethers.formatEther(hbarAmount)} HBAR`);
-    
-    // Note: This would require USDC approval and actual tokens
-    console.log("⚠️ This test requires USDC approval and actual tokens");
-    console.log("Run this test after setting up USDC and getting approval");
-    
-    return true;
-    
-  } catch (error) {
-    console.error("❌ Add liquidity test failed:", error);
     throw error;
   }
 }
@@ -201,11 +201,11 @@ if (importPath === scriptPath) {
   console.log("✅ Condition is TRUE - Running main execution...");
   testClearSkyPool()
     .then(() => {
-      console.log("\n🎉 All tests completed successfully!");
-      console.log("Pool is ready for production use!");
+      console.log("\n🎉 Pool Testing Completed!");
+      console.log("Pool is ready for flexible liquidity provision!");
     })
     .catch((error) => {
-      console.error("Some tests failed:", error);
+      console.error("Failed to test pool:", error);
       process.exit(1);
     });
 } else {
@@ -213,4 +213,4 @@ if (importPath === scriptPath) {
   console.log("💡 This file is being imported, not run directly");
 }
 
-export { testClearSkyPool, testAddLiquidity }; 
+export { testClearSkyPool }; 

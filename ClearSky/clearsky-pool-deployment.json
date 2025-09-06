@@ -1,19 +1,13 @@
 {
   "network": "testnet",
-  "poolAddress": "0x687AC0009136f936373B44Dc99f0dE6878D32243",
-  "usdcToken": "0x0000000000000000000000000000000000068cda",
+  "poolAddress": "0x669F4E0AF1183A0425B91dE91A73AE1c2AC06f77",
   "lpToken": "0x000000000000000000000000000000000066f928",
   "owner": "0x39f38eabff2fCcC01F6Da3502838d1c21acE46B8",
-  "deployedAt": "2025-09-01T16:37:46.196Z",
-  "transactionHash": "0x87be563ca3f7851ca64c8c14722dd47a23eafb521a882ab8492afa9f44d6e9f8",
+  "deployedAt": "2025-09-05T17:13:01.928Z",
+  "transactionHash": "0xcf757e09e04244dd87e22b57e3bffb31046998a60bb8cf2cec861123fb95c682",
   "abi": [
     {
       "inputs": [
-        {
-          "internalType": "address",
-          "name": "_usdcToken",
-          "type": "address"
-        },
         {
           "internalType": "address",
           "name": "_lpToken",
@@ -45,6 +39,11 @@
     },
     {
       "inputs": [],
+      "name": "InsufficientInitialLiquidity",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "InsufficientLPBalance",
       "type": "error"
     },
@@ -56,6 +55,11 @@
     {
       "inputs": [],
       "name": "InvalidAmounts",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoLiquidityProvided",
       "type": "error"
     },
     {
@@ -82,6 +86,11 @@
     },
     {
       "inputs": [],
+      "name": "PoolAlreadyInitialized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "PoolNotActive",
       "type": "error"
     },
@@ -99,16 +108,29 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "name": "CallResponseEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": true,
           "internalType": "address",
           "name": "collector",
           "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "usdcAmount",
-          "type": "uint256"
         },
         {
           "indexed": false,
@@ -132,14 +154,95 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "user",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
           "type": "address"
         },
         {
           "indexed": false,
-          "internalType": "uint256",
-          "name": "usdcAmount",
-          "type": "uint256"
+          "internalType": "int64",
+          "name": "amount",
+          "type": "int64"
+        }
+      ],
+      "name": "HTSMintAttempt",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "amount",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "int32",
+          "name": "responseCode",
+          "type": "int32"
+        }
+      ],
+      "name": "HTSMintFailed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "amount",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "newTotalSupply",
+          "type": "int64"
+        }
+      ],
+      "name": "HTSMintSuccess",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
         },
         {
           "indexed": false,
@@ -171,12 +274,6 @@
           "internalType": "address",
           "name": "user",
           "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "usdcAmount",
-          "type": "uint256"
         },
         {
           "indexed": false,
@@ -230,6 +327,31 @@
         }
       ],
       "name": "Paused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "initializer",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "hbarAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "PoolInitialized",
       "type": "event"
     },
     {
@@ -326,11 +448,6 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "usdcAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
           "name": "minLPTokens",
           "type": "uint256"
         }
@@ -342,11 +459,6 @@
     },
     {
       "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "usdcAmount",
-          "type": "uint256"
-        },
         {
           "internalType": "uint256",
           "name": "hbarAmount",
@@ -380,16 +492,21 @@
     },
     {
       "inputs": [],
-      "name": "getPoolRatio",
+      "name": "getPoolInfo",
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "usdcRatio",
+          "name": "hbarBalance",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "hbarRatio",
+          "name": "lpTokenSupply",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalPoolValue",
           "type": "uint256"
         }
       ],
@@ -408,11 +525,6 @@
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "usdcShare",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
           "name": "hbarShare",
           "type": "uint256"
         },
@@ -420,6 +532,58 @@
           "internalType": "uint256",
           "name": "lpBalance",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserValue",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "userValue",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getValuePerLPToken",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "valuePerToken",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "initializePool",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "isInitialized",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "initialized",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
@@ -474,13 +638,37 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "lpTokens",
-          "type": "uint256"
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
         },
         {
+          "internalType": "bytes",
+          "name": "encodedFunctionSelector",
+          "type": "bytes"
+        }
+      ],
+      "name": "redirectForToken",
+      "outputs": [
+        {
+          "internalType": "int256",
+          "name": "responseCode",
+          "type": "int256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "response",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
-          "name": "minUSDC",
+          "name": "lpTokens",
           "type": "uint256"
         },
         {
@@ -529,7 +717,7 @@
     },
     {
       "inputs": [],
-      "name": "totalUSDC",
+      "name": "totalValue",
       "outputs": [
         {
           "internalType": "uint256",
@@ -538,6 +726,74 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "transferFrom",
+      "outputs": [
+        {
+          "internalType": "int64",
+          "name": "responseCode",
+          "type": "int64"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "serialNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "transferFromNFT",
+      "outputs": [
+        {
+          "internalType": "int64",
+          "name": "responseCode",
+          "type": "int64"
+        }
+      ],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -558,19 +814,6 @@
       "name": "unpause",
       "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "usdcToken",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
