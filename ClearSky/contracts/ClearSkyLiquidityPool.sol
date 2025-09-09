@@ -57,6 +57,12 @@ contract ClearSkyLiquidityPool is Ownable, ReentrancyGuard, Pausable, HederaToke
     event HTSMintAttempt(address indexed token, address indexed to, int64 amount);
     event HTSMintSuccess(address indexed token, address indexed to, int64 amount, int64 newTotalSupply);
     event HTSMintFailed(address indexed token, address indexed to, int64 amount, int32 responseCode);
+    event HTSTransferAttempt(address indexed token, address indexed from, address indexed to, int64 amount);
+    event HTSTransferSuccess(address indexed token, address indexed from, address indexed to, int64 amount);
+    event HTSTransferFailed(address indexed token, address indexed from, address indexed to, int64 amount, int32 responseCode);
+    event HTSAssociateAttempt(address indexed token, address indexed account);
+    event HTSAssociateSuccess(address indexed token, address indexed account);
+    event HTSAssociateSkipped(address indexed token, address indexed account, string reason);
     
     // Errors
     error InsufficientLiquidity();
@@ -106,9 +112,11 @@ contract ClearSkyLiquidityPool is Ownable, ReentrancyGuard, Pausable, HederaToke
         int64 mintAmount = int64(uint64(lpTokenAmount));
         emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
         
+        // Step 1: Mint tokens to contract (treasury account)
         (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
         
         if (responseCode == HederaResponseCodes.SUCCESS) {
+            // For initialization, just mint and track - no transfer needed
             totalLPTokens = lpTokenAmount;
             emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
         } else {
@@ -159,11 +167,35 @@ contract ClearSkyLiquidityPool is Ownable, ReentrancyGuard, Pausable, HederaToke
         int64 mintAmount = int64(uint64(lpTokensToMint));
         emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
         
+        // Step 1: Mint tokens to contract (treasury account)
         (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
         
         if (responseCode == HederaResponseCodes.SUCCESS) {
-            totalLPTokens += lpTokensToMint;
-            emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
+            // Step 2: Associate user with token (if not already associated)
+            emit HTSAssociateAttempt(lpToken, msg.sender);
+            int associateResponseCode = associateToken(msg.sender, lpToken);
+            
+            if (associateResponseCode == HederaResponseCodes.SUCCESS) {
+                emit HTSAssociateSuccess(lpToken, msg.sender);
+            } else if (associateResponseCode == HederaResponseCodes.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT) {
+                emit HTSAssociateSkipped(lpToken, msg.sender, "Already associated");
+            } else {
+                emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(associateResponseCode));
+                revert("Token association failed");
+            }
+            
+            // Step 3: Transfer tokens from contract to user
+            emit HTSTransferAttempt(lpToken, address(this), msg.sender, mintAmount);
+            int transferResponseCode = transferToken(lpToken, address(this), msg.sender, mintAmount);
+            
+            if (transferResponseCode == HederaResponseCodes.SUCCESS) {
+                totalLPTokens += lpTokensToMint;
+                emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
+                emit HTSTransferSuccess(lpToken, address(this), msg.sender, mintAmount);
+            } else {
+                emit HTSTransferFailed(lpToken, address(this), msg.sender, mintAmount, int32(transferResponseCode));
+                revert("HTS token transfer failed");
+            }
         } else {
             emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
             revert("HTS token minting failed");

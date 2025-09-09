@@ -136,11 +136,17 @@ async function testHBAROnlyPool() {
     console.log("✅ HBAR-only liquidity added successfully!");
     console.log(`Gas Used: ${receipt.gasUsed.toString()}`);
     
-    // Parse events to see HTS token minting
+    // Parse events to see HTS token minting, association, and transfers
     console.log(`\n🔍 Checking Transaction Events (${receipt.logs.length} events):`);
     let htsMintAttempts = 0;
     let htsMintSuccesses = 0;
     let htsMintFailures = 0;
+    let htsAssociateAttempts = 0;
+    let htsAssociateSuccesses = 0;
+    let htsAssociateSkipped = 0;
+    let htsTransferAttempts = 0;
+    let htsTransferSuccesses = 0;
+    let htsTransferFailures = 0;
     
     for (let i = 0; i < receipt.logs.length; i++) {
       const log = receipt.logs[i];
@@ -158,6 +164,26 @@ async function testHBAROnlyPool() {
         } else if (parsedLog.name === 'HTSMintFailed') {
           htsMintFailures++;
           console.log(`    ❌ HTS Mint Failed: Code ${parsedLog.args.responseCode}`);
+        } else if (parsedLog.name === 'HTSAssociateAttempt') {
+          htsAssociateAttempts++;
+          console.log(`    🔗 HTS Associate Attempt: ${parsedLog.args.account}`);
+        } else if (parsedLog.name === 'HTSAssociateSuccess') {
+          htsAssociateSuccesses++;
+          console.log(`    ✅ HTS Associate Success: ${parsedLog.args.account}`);
+        } else if (parsedLog.name === 'HTSAssociateSkipped') {
+          htsAssociateSkipped++;
+          console.log(`    ⏭️ HTS Associate Skipped: ${parsedLog.args.reason}`);
+        } else if (parsedLog.name === 'HTSTransferAttempt') {
+          htsTransferAttempts++;
+          console.log(`    🔄 HTS Transfer Attempt: ${parsedLog.args.from} → ${parsedLog.args.to}`);
+          console.log(`       Amount: ${ethers.formatUnits(parsedLog.args.amount, 6)} CSLP`);
+        } else if (parsedLog.name === 'HTSTransferSuccess') {
+          htsTransferSuccesses++;
+          console.log(`    ✅ HTS Transfer Success: ${parsedLog.args.from} → ${parsedLog.args.to}`);
+          console.log(`       Amount: ${ethers.formatUnits(parsedLog.args.amount, 6)} CSLP`);
+        } else if (parsedLog.name === 'HTSTransferFailed') {
+          htsTransferFailures++;
+          console.log(`    ❌ HTS Transfer Failed: Code ${parsedLog.args.responseCode}`);
         } else if (parsedLog.name === 'LiquidityAdded') {
           console.log(`    💧 Liquidity Added: ${ethers.formatUnits(parsedLog.args.hbarAmount, 8)} HBAR → ${ethers.formatUnits(parsedLog.args.lpTokensMinted, 6)} CSLP`);
         }
@@ -170,6 +196,12 @@ async function testHBAROnlyPool() {
     console.log(`  Mint Attempts: ${htsMintAttempts}`);
     console.log(`  Mint Successes: ${htsMintSuccesses}`);
     console.log(`  Mint Failures: ${htsMintFailures}`);
+    console.log(`  Associate Attempts: ${htsAssociateAttempts}`);
+    console.log(`  Associate Successes: ${htsAssociateSuccesses}`);
+    console.log(`  Associate Skipped: ${htsAssociateSkipped}`);
+    console.log(`  Transfer Attempts: ${htsTransferAttempts}`);
+    console.log(`  Transfer Successes: ${htsTransferSuccesses}`);
+    console.log(`  Transfer Failures: ${htsTransferFailures}`);
     
     // Test 5: Check updated pool state
     console.log("\n📝 Test 5: Check Updated Pool State");
@@ -208,11 +240,14 @@ async function testHBAROnlyPool() {
     console.log(`HBAR increase matches: ${expectedHbarIncrease === actualHbarIncrease}`);
     
     console.log(`HTS minting successful: ${htsMintSuccesses > 0}`);
+    console.log(`HTS transfer successful: ${htsTransferSuccesses > 0}`);
     console.log(`LP tokens received: ${lpTokensAdded > 0n}`);
     
     const allTestsPassed = (
       htsMintSuccesses > 0 && 
       htsMintFailures === 0 && 
+      htsTransferSuccesses > 0 &&
+      htsTransferFailures === 0 &&
       lpTokensAdded > 0n && 
       expectedHbarIncrease === actualHbarIncrease
     );
@@ -227,6 +262,8 @@ async function testHBAROnlyPool() {
       console.log("\n⚠️ Some tests may have issues:");
       console.log(`  HTS Mint Successes: ${htsMintSuccesses}`);
       console.log(`  HTS Mint Failures: ${htsMintFailures}`);
+      console.log(`  HTS Transfer Successes: ${htsTransferSuccesses}`);
+      console.log(`  HTS Transfer Failures: ${htsTransferFailures}`);
       console.log(`  LP Tokens Added: ${lpTokensAdded.toString()}`);
       console.log(`  HBAR Match: ${expectedHbarIncrease === actualHbarIncrease}`);
     }

@@ -1,10 +1,10 @@
 {
   "network": "testnet",
-  "poolAddress": "0x669F4E0AF1183A0425B91dE91A73AE1c2AC06f77",
+  "poolAddress": "0x4eDeb6832C466AC87c391e4108037a28b45ffD26",
   "lpToken": "0x000000000000000000000000000000000066f928",
   "owner": "0x39f38eabff2fCcC01F6Da3502838d1c21acE46B8",
-  "deployedAt": "2025-09-05T17:13:01.928Z",
-  "transactionHash": "0xcf757e09e04244dd87e22b57e3bffb31046998a60bb8cf2cec861123fb95c682",
+  "deployedAt": "2025-09-09T16:08:38.108Z",
+  "transactionHash": "0x9c1ed44d4abbdc6567e7603538fceb6cc32a712428f0e9603668fb9ae633491f",
   "abi": [
     {
       "inputs": [
@@ -160,6 +160,69 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "HTSAssociateAttempt",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "name": "HTSAssociateSkipped",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "HTSAssociateSuccess",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "to",
           "type": "address"
         },
@@ -233,6 +296,105 @@
         }
       ],
       "name": "HTSMintSuccess",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "amount",
+          "type": "int64"
+        }
+      ],
+      "name": "HTSTransferAttempt",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "amount",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "int32",
+          "name": "responseCode",
+          "type": "int32"
+        }
+      ],
+      "name": "HTSTransferFailed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "amount",
+          "type": "int64"
+        }
+      ],
+      "name": "HTSTransferSuccess",
       "type": "event"
     },
     {
