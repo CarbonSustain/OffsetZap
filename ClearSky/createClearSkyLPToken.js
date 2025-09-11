@@ -9,6 +9,7 @@ import {
 } from "@hashgraph/sdk";
 import dotenv from 'dotenv';
 import fs from 'fs';
+const fetch = (await import("node-fetch")).default;
 
 dotenv.config();
 
@@ -16,6 +17,11 @@ async function createClearSkyLPToken() {
   try {
     console.log("🚀 Creating ClearSky LP Token on Hedera...");
     
+    // Load deployment info to get pool address
+    const deploymentInfo = JSON.parse(fs.readFileSync('clearsky-pool-deployment.json', 'utf8'));
+    const poolAddress = deploymentInfo.poolAddress;
+    console.log(`Pool Address in EVM: ${poolAddress}`);
+
     // Load your operator credentials
     const operatorId = process.env.OPERATOR_ID;
     const operatorKey = process.env.OPERATOR_KEY;
@@ -36,6 +42,17 @@ async function createClearSkyLPToken() {
     const adminKey = PrivateKey.generateECDSA();
 
     console.log("📝 Creating LP token transaction...");
+
+    //get proper pool contract id from mirror node
+
+    const url = `https://testnet.mirrornode.hedera.com/api/v1/contracts/${poolAddress}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const poolContractId = data.contract_id;
+
+
+    console.log("Contract ID:", poolContractId);
     
     // Create the LP token
     const transaction = new TokenCreateTransaction()
@@ -45,7 +62,7 @@ async function createClearSkyLPToken() {
       .setInitialSupply(0) // Start with 0, pool will mint as needed
       .setSupplyType(TokenSupplyType.Infinite)
       .setTokenType(TokenType.FungibleCommon)
-      .setTreasuryAccountId(operatorId) // Temporary treasury
+      .setTreasuryAccountId(poolContractId) // pool contract id
       .setAdminKey(adminKey.publicKey)
       .setSupplyKey(supplyKey.publicKey)
       .setTokenMemo("Liquidity Pool Token for ClearSky")
@@ -53,7 +70,10 @@ async function createClearSkyLPToken() {
 
     // Sign and execute
     console.log("✍️ Signing and executing transaction...");
-    const signedTx = await transaction.sign(adminKey);
+    const myprivatekey = process.env.PRIVATE_KEY;
+    const myprivateKey = PrivateKey.fromString(myprivatekey);
+    console.log(`🔑 My Private Key: ${myprivateKey.toString()}`);
+    const signedTx = await transaction.sign(myprivateKey);
     const txResponse = await signedTx.execute(client);
     const receipt = await txResponse.getReceipt(client);
     const tokenId = receipt.tokenId;
@@ -114,19 +134,52 @@ async function transferTokenControl(tokenId, supplyKeyString, adminKeyString, po
     console.log(`   Admin Key: ${adminKeyString.substring(0, 20)}...`);
 
     // Convert EVM contract address → Hedera ContractId
-    const poolContractId = ContractId.fromEvmAddress(0, 0, poolAddress);
+    const poolContractIdMain = ContractId.fromEvmAddress(0, 0, poolAddress);
+    console.log(`🔍 Pool Contract ID: ${poolContractIdMain}`);
 
-    // Update the supply key to be controlled by the contract
-    const updateSupplyKeyTx = new TokenUpdateTransaction()
+    //get proper pool contract id from mirror node
+
+    const url = `https://testnet.mirrornode.hedera.com/api/v1/contracts/${poolAddress}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const poolContractId = data.contract_id;
+
+
+    console.log("Contract ID:", poolContractId);
+
+    // Step 1: Create the transaction and freeze it (SUPPLY KEY ONLY)
+    console.log("📝 Creating token update transaction...");
+    console.log("⚠️ Only transferring supply key (treasury cannot be changed after creation)");
+    const updateTx = new TokenUpdateTransaction()
       .setTokenId(tokenId)
-      .setSupplyKey(poolContractId)
+      .setSupplyKey(poolContractIdMain)
+      // .setTreasuryAccountId(poolContractId) // This likely can't be changed
       .freezeWith(client);
 
-    const signedUpdateTx = await updateSupplyKeyTx.sign(adminKey);
+    console.log("🔒 Transaction frozen for multisignature signing...");
+
+    // Step 2: Sign with admin key only (simpler approach)
+    console.log("✍️ Signing with admin key...");
+    console.log(`🔑 Admin key: ${adminKey.publicKey.toString()}`);
+
+    // Sign the transaction with the admin key
+    const signedUpdateTx = await updateTx.sign(adminKey);
+    console.log("✅ Transaction signed with admin key");
+
+    // Step 3: Verify the signature
+    console.log("🔍 Verifying signature...");
+    const signatures = signedUpdateTx.getSignatures();
+    console.log(`📋 Transaction has ${signatures.size} node signatures`);
+
+    // Step 5: Submit the multisigned transaction
+    console.log("🚀 Submitting multisigned transaction...");
     const txResponse = await signedUpdateTx.execute(client);
     const receipt = await txResponse.getReceipt(client);
 
     console.log(`✅ Supply key transferred to pool contract: ${poolAddress}`);
+    console.log(`   ✅ Pool can now mint/burn tokens`);
+    console.log(`   ⚠️ Treasury account remains unchanged (as expected)`);
     console.log(`   Transaction Status: ${receipt.status.toString()}`);
     client.close();
 

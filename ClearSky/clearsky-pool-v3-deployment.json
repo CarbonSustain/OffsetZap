@@ -1,0 +1,50 @@
+{
+  "contractName": "ClearSkyLiquidityPoolV3",
+  "contractAddress": "0xdE7c8A52fF2f9BF4f49E32295C34e9d034c88bb6",
+  "deployerAddress": "0x39f38eabff2fCcC01F6Da3502838d1c21acE46B8",
+  "contractOwner": "0x39f38eabff2fCcC01F6Da3502838d1c21acE46B8",
+  "network": "testnet",
+  "chainId": "296",
+  "rpcUrl": "https://testnet.hashio.io/api",
+  "tokenInfo": {
+    "name": "ClearSky LP Token V3",
+    "symbol": "CSLPV3",
+    "decimals": "6",
+    "tokenAddress": "0x000000000000000000000000000000000067e8E9",
+    "tokenId": "0.0.6809833",
+    "treasury": "0xdE7c8A52fF2f9BF4f49E32295C34e9d034c88bb6",
+    "supplyKey": "0xdE7c8A52fF2f9BF4f49E32295C34e9d034c88bb6",
+    "adminKey": "Contract-controlled",
+    "created": true,
+    "createdBy": "Contract (HIP-1028 Split)"
+  },
+  "poolConfig": {
+    "minLiquidity": "100000",
+    "feeBps": "30",
+    "feeDenominator": "10000",
+    "totalHBAR": "1000000000",
+    "totalLPTokens": "10000000",
+    "totalValue": "1000000000",
+    "initialized": true,
+    "initializedAt": "2025-09-11T15:47:48.167Z",
+    "initializedBy": "0x39f38eabff2fCcC01F6Da3502838d1c21acE46B8",
+    "initializationTx": "0x4f760b8c0a74ab0c5397a4aa06cb78bcfecda076039213076ca11f7d220da958"
+  },
+  "deployedAt": "2025-09-11T15:46:27.289Z",
+  "deploymentBlock": 24779847,
+  "deploymentTxHash": "0x4288e205799a296a339ff7178847232ee4de946d5f88e1e4de260b2958f88b47",
+  "tokenCreationTxHash": "0xfb88517b72f80ce4e7880cccf94569e96022c7430e53a6a8be80bf729da92162",
+  "gasUsedDeployment": "See deployment transaction",
+  "gasUsedTokenCreation": "8000000",
+  "version": "3.0.0",
+  "features": [
+    "Split Token Creation",
+    "HIP-1028 Token Creation",
+    "Self-Treasury Management",
+    "Integrated LP Token",
+    "Value-Based Distribution",
+    "HTS Integration",
+    "Slippage Protection",
+    "Emergency Controls"
+  ]
+}
