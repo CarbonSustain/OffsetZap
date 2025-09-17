@@ -77,7 +77,7 @@ async function initializePoolV3() {
     if (totalLPTokens > 0) {
       console.log(`⚠️ Pool is already initialized!`);
       console.log(`   • Total HBAR: ${ethers.formatUnits(totalHBAR, 8)} HBAR`);
-      console.log(`   • Total LP Tokens: ${ethers.formatUnits(totalLPTokens, 6)} CSLPV3`);
+      console.log(`   • Total LP Tokens: ${ethers.formatUnits(totalLPTokens, 6)} CSLP`);
       console.log(`   • Total Value: ${ethers.formatUnits(totalValue, 8)} HBAR`);
       return;
     }
@@ -140,7 +140,7 @@ async function initializePoolV3() {
             case 'LiquidityAdded':
               console.log(`      • User: ${parsedLog.args.user}`);
               console.log(`      • HBAR Amount: ${ethers.formatUnits(parsedLog.args.hbarAmount, 8)} HBAR`);
-              console.log(`      • LP Tokens Minted: ${ethers.formatUnits(parsedLog.args.lpTokensMinted, 6)} CSLPV3`);
+              console.log(`      • LP Tokens Minted: ${ethers.formatUnits(parsedLog.args.lpTokensMinted, 6)} CSLP`);
               console.log(`      • Timestamp: ${new Date(Number(parsedLog.args.timestamp) * 1000).toISOString()}`);
               liquidityAdded = true;
               lpTokensMinted = parsedLog.args.lpTokensMinted;
@@ -183,7 +183,7 @@ async function initializePoolV3() {
     
     console.log(`📊 Pool State After Initialization:`);
     console.log(`   • Total HBAR: ${ethers.formatUnits(newTotalHBAR, 8)} HBAR`);
-    console.log(`   • Total LP Tokens: ${ethers.formatUnits(newTotalLPTokens, 6)} CSLPV3`);
+    console.log(`   • Total LP Tokens: ${ethers.formatUnits(newTotalLPTokens, 6)} CSLP`);
     console.log(`   • Total Value: ${ethers.formatUnits(newTotalValue, 8)} HBAR`);
 
     // Calculate value per LP token
@@ -194,7 +194,7 @@ async function initializePoolV3() {
     console.log(`\n💰 Final Balances:`);
     const finalBalance = await provider.getBalance(signer.address);
     console.log(`   • Your HBAR Balance: ${ethers.formatEther(finalBalance)} HBAR`);
-    console.log(`   • Your LP Balance: ${ethers.formatUnits(lpTokensMinted, 6)} CSLPV3 (minted to contract treasury)`);
+    console.log(`   • Your LP Balance: ${ethers.formatUnits(lpTokensMinted, 6)} CSLP (minted to contract treasury)`);
 
     // Update deployment info with initialization data
     deploymentInfo.poolConfig.totalHBAR = newTotalHBAR.toString();

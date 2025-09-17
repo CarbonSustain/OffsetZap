@@ -1,15 +1,15 @@
 {
-  "tokenId": "0.0.6809833",
-  "tokenAddress": "0x000000000000000000000000000000000067e8E9",
-  "tokenName": "ClearSky LP Token V3",
-  "tokenSymbol": "CSLPV3",
+  "tokenId": "0.0.6861215",
+  "tokenAddress": "0x000000000000000000000000000000000068B19f",
+  "tokenName": "ClearSky LP Token",
+  "tokenSymbol": "CSLP",
   "decimals": "6",
-  "treasury": "0xdE7c8A52fF2f9BF4f49E32295C34e9d034c88bb6",
-  "supplyKey": "0xdE7c8A52fF2f9BF4f49E32295C34e9d034c88bb6",
+  "treasury": "0xdE854a2caA16D105A2A242eb85E39aD05b09DD79",
+  "supplyKey": "0xdE854a2caA16D105A2A242eb85E39aD05b09DD79",
   "adminKey": "Contract-controlled",
-  "poolAddress": "0xdE7c8A52fF2f9BF4f49E32295C34e9d034c88bb6",
+  "poolAddress": "0xdE854a2caA16D105A2A242eb85E39aD05b09DD79",
   "createdBy": "Contract (Split)",
-  "createdAt": "2025-09-11T15:46:27.336Z",
+  "createdAt": "2025-09-17T04:27:55.990Z",
   "network": "Hedera Testnet",
   "version": "3.0.0"
 }

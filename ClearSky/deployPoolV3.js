@@ -1,3 +1,4 @@
+
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
@@ -91,8 +92,8 @@ async function deployPoolV3() {
     // Now create the LP token in a separate transaction
     console.log(`\n🪙 Creating LP Token (separate transaction)...`);
     const tokenConfig = {
-      name: "ClearSky LP Token V3",
-      symbol: "CSLPV3"
+      name: "ClearSky LP Token",
+      symbol: "CSLP"
     };
 
     console.log(`📝 Token Configuration:`);
