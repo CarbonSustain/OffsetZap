@@ -257,6 +257,69 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     }
     
     /**
+     * @notice Add liquidity with USD-based CSLP calculation
+     * @param usdAmount Amount in USD (2 decimals, e.g., 1000 = $10.00)
+     * @param maturationAmount Maturation amount in USD (2 decimals, e.g., 11000 = $110.00)
+     * @param minLPTokens Minimum LP tokens expected (slippage protection)
+     */
+    function addLiquidityWithUSD(
+        uint256 usdAmount, 
+        uint256 maturationAmount, 
+        uint256 minLPTokens
+    ) 
+        external 
+        payable 
+        nonReentrant 
+        whenNotPaused 
+    {
+        require(tokenInfo.created, "Token not created");
+        require(totalLPTokens > 0, "Pool not initialized");
+        require(msg.value > 0, "No HBAR provided");
+        require(usdAmount > 0, "USD amount must be greater than 0");
+        require(maturationAmount > 0, "Maturation amount must be greater than 0");
+        
+        // Calculate exact CSLP tokens based on USD amount
+        uint256 cslpTokensToMint = calculateCSLPFromUSD(usdAmount, maturationAmount);
+        require(cslpTokensToMint >= minLPTokens, "Slippage exceeded");
+        
+        // Update pool state
+        totalHBAR += msg.value;
+        totalValue += msg.value;
+        
+        // Mint exact CSLP tokens to user using HTS
+        int64 mintAmount = int64(uint64(cslpTokensToMint));
+        emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
+        
+        // Step 1: Mint tokens to contract (treasury account)
+        (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
+        
+        if (responseCode == HederaResponseCodes.SUCCESS) {
+            
+            emit HTSTransferAttempt(lpToken, address(this), msg.sender, mintAmount);
+            int transferResponseCode = transferToken(lpToken, address(this), msg.sender, mintAmount);
+            
+            if (transferResponseCode == HederaResponseCodes.SUCCESS) {
+                totalLPTokens += cslpTokensToMint;
+                emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
+                emit HTSTransferSuccess(lpToken, address(this), msg.sender, mintAmount);
+            } else {
+                emit HTSTransferFailed(lpToken, address(this), msg.sender, mintAmount, int32(transferResponseCode));
+                revert("HTS token transfer failed");
+            }
+        } else {
+            emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
+            revert("HTS token minting failed");
+        }
+        
+        emit LiquidityAdded(
+            msg.sender, 
+            msg.value, 
+            cslpTokensToMint,
+            block.timestamp
+        );
+    }
+    
+    /**
      * @notice Remove liquidity from the pool
      * @param lpTokenAmount Amount of LP tokens to burn
      * @param minHBAR Minimum HBAR expected (slippage protection)
@@ -321,6 +384,22 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         // Calculate proportional LP tokens based on current pool ratio
         // LP tokens = (hbarAmount * totalLPTokens) / totalHBAR
         lpTokens = (hbarAmount * totalLPTokens) / totalHBAR;
+    }
+    
+    /**
+     * @notice Calculate CSLP tokens for a given USD amount (fixed conversion)
+     * @param usdAmount Amount in USD (2 decimals, e.g., 1000 = $10.00)
+     * @param maturationAmount Maturation amount in USD (2 decimals, e.g., 11000 = $110.00)
+     * @return cslpTokens CSLP tokens to mint (6 decimals)
+     */
+    function calculateCSLPFromUSD(uint256 usdAmount, uint256 maturationAmount) 
+        public pure returns (uint256 cslpTokens) {
+        require(usdAmount > 0, "USD amount must be greater than 0");
+        require(maturationAmount > 0, "Maturation amount must be greater than 0");
+        
+        // CSLP = (USD amount * 1e6) / maturation amount
+        // This gives us CSLP tokens in 6 decimals
+        cslpTokens = (usdAmount * 1e6) / maturationAmount;
     }
     
     /**
