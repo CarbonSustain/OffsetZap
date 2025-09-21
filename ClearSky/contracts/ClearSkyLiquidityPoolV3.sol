@@ -40,6 +40,20 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     
     TokenInfo public tokenInfo;
     
+    // Purchase metadata for tracking individual purchases
+    struct PurchaseMetadata {
+        uint256 hbarAmount;        // HBAR used for this purchase
+        uint256 timestamp;         // Date and time of purchase
+        uint256 numUsed;           // The calculated CSLP amount (for reference)
+        address purchaser;         // Wallet address of the buyer
+        uint256 purchaseId;        // Unique purchase ID
+    }
+    
+    // Storage for purchase metadata
+    mapping(uint256 => PurchaseMetadata) public purchaseMetadata;
+    mapping(address => uint256[]) public userPurchases;  // Maps user address to their purchase IDs
+    uint256 public totalPurchases;
+    
     // Events
     event TokenCreated(
         address indexed tokenAddress,
@@ -202,10 +216,12 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     }
     
     /**
-     * @notice Add liquidity to the pool
-     * @param minLPTokens Minimum LP tokens expected (slippage protection)
+     * @notice Add liquidity to the pool - Always mints exactly 1 CSLP token per transaction
+     * @param minLPTokens Minimum LP tokens expected (slippage protection) - should be 1
+     * @param usdAmount Amount in USD (2 decimals, e.g., 1000 = $10.00)
+     * @param maturationAmount Maturation amount in USD (2 decimals, e.g., 11000 = $110.00)
      */
-    function addLiquidity(uint256 minLPTokens) 
+    function addLiquidity(uint256 minLPTokens, uint256 usdAmount, uint256 maturationAmount) 
         external 
         payable 
         nonReentrant 
@@ -214,16 +230,21 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         require(tokenInfo.created, "Token not created");
         require(totalLPTokens > 0, "Pool not initialized");
         require(msg.value > 0, "No HBAR provided");
+        require(usdAmount > 0, "USD amount must be greater than 0");
+        require(maturationAmount > 0, "Maturation amount must be greater than 0");
         
-        // Calculate LP tokens to mint based on current pool ratio
-        uint256 lpTokensToMint = calculateLPTokens(msg.value);
+        // Calculate what the CSLP amount would be using USD-based calculation (for reference in metadata)
+        uint256 calculatedCSLP = calculateCSLPFromUSD(usdAmount, maturationAmount);
+        
+        // 🎯 ALWAYS MINT EXACTLY 1 CSLP TOKEN PER TRANSACTION
+        uint256 lpTokensToMint = 1000000; // Always 1 token per transaction (1 * 10^6 for 6 decimals)
         require(lpTokensToMint >= minLPTokens, "Slippage exceeded");
         
         // Update pool state
         totalHBAR += msg.value;
         totalValue += msg.value;
         
-        // Mint LP tokens to user using HTS
+        // Mint exactly 1 LP token using HTS
         int64 mintAmount = int64(uint64(lpTokensToMint));
         emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
         
@@ -247,6 +268,19 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
             emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
             revert("HTS token minting failed");
         }
+        
+        // 🎯 STORE METADATA FOR THIS PURCHASE
+        purchaseMetadata[totalPurchases] = PurchaseMetadata({
+            hbarAmount: msg.value,           // HBAR used for this purchase
+            timestamp: block.timestamp,      // Date and time
+            numUsed: calculatedCSLP,         // The calculated CSLP amount (for reference)
+            purchaser: msg.sender,           // Wallet address of the buyer
+            purchaseId: totalPurchases       // Unique purchase ID
+        });
+        
+        // 🎯 TRACK WHICH USER MADE WHICH PURCHASE
+        userPurchases[msg.sender].push(totalPurchases);
+        totalPurchases++;
         
         emit LiquidityAdded(
             msg.sender, 
@@ -500,6 +534,32 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
      */
     function getTokenInfo() external view returns (TokenInfo memory) {
         return tokenInfo;
+    }
+    
+    /**
+     * @notice Get all purchase IDs for a specific user (by wallet address)
+     * @param user User's wallet address
+     * @return Array of purchase IDs
+     */
+    function getUserPurchases(address user) external view returns (uint256[] memory) {
+        return userPurchases[user];
+    }
+    
+    /**
+     * @notice Get metadata for a specific purchase
+     * @param purchaseId Purchase ID
+     * @return Purchase metadata struct
+     */
+    function getPurchaseMetadata(uint256 purchaseId) external view returns (PurchaseMetadata memory) {
+        return purchaseMetadata[purchaseId];
+    }
+    
+    /**
+     * @notice Get total number of purchases
+     * @return Total number of purchases made
+     */
+    function getTotalPurchases() external view returns (uint256) {
+        return totalPurchases;
     }
     
     /**
