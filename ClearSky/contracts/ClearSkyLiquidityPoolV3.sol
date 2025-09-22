@@ -49,10 +49,25 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         uint256 purchaseId;        // Unique purchase ID
     }
     
+    // FCDR token metadata for tracking emergency withdrawals
+    struct FCDRMetadata {
+        uint256 hbarAmount;        // HBAR amount withdrawn
+        uint256 timestamp;         // Date and time of withdrawal
+        address ownerAddress;      // Owner wallet address where HBAR was sent
+        address poolAddress;       // Pool address from which HBAR was withdrawn
+        uint256 fcdrId;            // Unique FCDR token ID
+    }
+    
     // Storage for purchase metadata
     mapping(uint256 => PurchaseMetadata) public purchaseMetadata;
     mapping(address => uint256[]) public userPurchases;  // Maps user address to their purchase IDs
     uint256 public totalPurchases;
+    
+    // FCDR token info and storage
+    address public fcdrToken;
+    mapping(uint256 => FCDRMetadata) public fcdrMetadata;
+    mapping(address => uint256[]) public ownerFCDRs;  // Maps owner address to their FCDR IDs
+    uint256 public totalFCDRs;
     
     // Events
     event TokenCreated(
@@ -61,6 +76,21 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         string symbol,
         uint8 decimals,
         address treasury
+    );
+    
+    event FCDRTokenCreated(
+        address indexed tokenAddress,
+        string name,
+        string symbol,
+        uint8 decimals,
+        address treasury
+    );
+    
+    event FCDRMinted(
+        address indexed owner,
+        uint256 fcdrId,
+        uint256 hbarAmount,
+        uint256 timestamp
     );
     
     event LiquidityAdded(
@@ -177,6 +207,41 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         });
         
         emit TokenCreated(tokenAddress, _tokenName, _tokenSymbol, 6, address(this));
+    }
+    
+    /**
+     * @notice Create FCDR token using HIP-1028 (Owner only, after deployment)
+     * @dev Creates a non-tradable HTS token for tracking emergency withdrawals
+     */
+    function createFCDRToken() external payable onlyOwner {
+        require(fcdrToken == address(0), "FCDR token already created");
+        
+        // Create HederaToken struct - exactly like the working LP token example
+        IHederaTokenService.HederaToken memory token;
+        token.name = "Future CDR";
+        token.symbol = "FCDR";
+        token.treasury = address(this); // Contract is treasury
+        token.memo = "Non-tradable token representing emergency HBAR withdrawal from ClearSky pool";
+        token.tokenKeys = new IHederaTokenService.TokenKey[](2);
+        
+        // Supply key (this contract) - for minting FCDR tokens
+        token.tokenKeys[0] = super.getSingleKey(KeyType.SUPPLY, KeyValueType.CONTRACT_ID, address(this));
+        
+        // Wipe key (this contract) - for burn functionality (future use)
+        token.tokenKeys[1] = super.getSingleKey(KeyType.WIPE, KeyValueType.CONTRACT_ID, address(this));
+        
+        // Create the fungible token with 0 decimals and 0 initial supply
+        (int responseCode, address tokenAddress) = HederaTokenService.createFungibleToken(token, 0, 0);
+        
+        if (responseCode != HederaResponseCodes.SUCCESS) {
+            // Emit detailed error information for debugging
+            emit TokenCreationFailedEvent(int32(responseCode), getErrorMessage(int32(responseCode)));
+            revert TokenCreationFailed(int32(responseCode));
+        }
+        
+        fcdrToken = tokenAddress;
+        
+        emit FCDRTokenCreated(tokenAddress, "Future CDR", "FCDR", 0, address(this));
     }
     
     /**
@@ -653,17 +718,105 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     
     /**
      * @notice Emergency withdrawal (Owner only, when paused)
+     * @dev Mints FCDR token before transferring HBAR to owner
      */
     function emergencyWithdraw() external onlyOwner whenPaused {
         uint256 balance = address(this).balance;
         require(balance > 0, "No HBAR to withdraw");
+        require(fcdrToken != address(0), "FCDR token not created");
         
+        // Step 1: Mint FCDR token to the pool (quantity = 1)
+        _mintFCDRToPool(balance);
+        
+        // Step 2: Transfer all HBAR to owner
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "Emergency withdrawal failed");
         
         emit FeesCollected(owner(), balance, block.timestamp);
     }
     
+    
+    /**
+     * @notice Mint FCDR token to pool (internal function)
+     * @param hbarAmount The amount of HBAR being withdrawn
+     */
+    function _mintFCDRToPool(uint256 hbarAmount) internal {
+        require(fcdrToken != address(0), "FCDR token not created");
+        
+        // Mint 1 FCDR token to the pool
+        (int responseCode, int64 newTotalSupply, int64[] memory serialNumbers) = HederaTokenService.mintToken(fcdrToken, 1, new bytes[](0));
+        
+        if (responseCode != HederaResponseCodes.SUCCESS) {
+            revert(string(abi.encodePacked("FCDR minting failed: ", getErrorMessage(int32(responseCode)))));
+        }
+        
+        // Store FCDR metadata
+        fcdrMetadata[totalFCDRs] = FCDRMetadata({
+            hbarAmount: hbarAmount,
+            timestamp: block.timestamp,
+            ownerAddress: owner(),
+            poolAddress: address(this),
+            fcdrId: totalFCDRs
+        });
+        
+        // Track FCDR for owner
+        ownerFCDRs[owner()].push(totalFCDRs);
+        totalFCDRs++;
+        
+        emit FCDRMinted(owner(), totalFCDRs - 1, hbarAmount, block.timestamp);
+    }
+    
+    /**
+     * @notice Burn FCDR token (Owner only)
+     * @param fcdrId The FCDR token ID to burn
+     * @dev Future functionality for burning FCDR tokens
+     */
+    function burnFCDR(uint256 fcdrId) external onlyOwner {
+        require(fcdrToken != address(0), "FCDR token not created");
+        require(fcdrId < totalFCDRs, "Invalid FCDR ID");
+        
+        // Get the FCDR metadata
+        FCDRMetadata memory metadata = fcdrMetadata[fcdrId];
+        require(metadata.ownerAddress == owner(), "Not the owner of this FCDR");
+        
+        // Burn 1 FCDR token from the pool
+        int256 responseCode = HederaTokenService.wipeTokenAccount(fcdrToken, address(this), 1);
+        
+        if (responseCode != HederaResponseCodes.SUCCESS) {
+            revert(string(abi.encodePacked("FCDR burning failed: ", getErrorMessage(int32(responseCode)))));
+        }
+        
+        // Note: We don't delete the metadata to maintain historical records
+        // emit FCDRBurned(owner(), fcdrId, block.timestamp);
+    }
+    
+    /**
+     * @notice Get FCDR metadata
+     * @param fcdrId The FCDR token ID
+     * @return FCDR metadata
+     */
+    function getFCDRMetadata(uint256 fcdrId) external view returns (FCDRMetadata memory) {
+        require(fcdrId < totalFCDRs, "Invalid FCDR ID");
+        return fcdrMetadata[fcdrId];
+    }
+    
+    /**
+     * @notice Get owner's FCDR IDs
+     * @param owner The owner address
+     * @return Array of FCDR IDs owned by the address
+     */
+    function getOwnerFCDRs(address owner) external view returns (uint256[] memory) {
+        return ownerFCDRs[owner];
+    }
+    
+    /**
+     * @notice Get total FCDR count
+     * @return Total number of FCDR tokens minted
+     */
+    function getTotalFCDRs() external view returns (uint256) {
+        return totalFCDRs;
+    }
+
     /**
      * @notice Receive function to accept HBAR
      */

@@ -1,6 +1,6 @@
 {
   "contractName": "ClearSkyLiquidityPoolV3",
-  "contractAddress": "0x947960E2103Fc7E044F57176A854FaCE20126FC9",
+  "contractAddress": "0xB9e92b4B4F52FA7437C81eCfF2E89e7Fd8561c7a",
   "deployerAddress": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
   "contractOwner": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
   "network": "testnet",
@@ -10,11 +10,24 @@
     "name": "ClearSky LP Token",
     "symbol": "CSLP",
     "decimals": "6",
-    "tokenAddress": "0x0000000000000000000000000000000000690271",
-    "tokenId": "0.0.6881905",
-    "treasury": "0x947960E2103Fc7E044F57176A854FaCE20126FC9",
-    "supplyKey": "0x947960E2103Fc7E044F57176A854FaCE20126FC9",
+    "tokenAddress": "0x0000000000000000000000000000000000690383",
+    "tokenId": "0.0.6882179",
+    "treasury": "0xB9e92b4B4F52FA7437C81eCfF2E89e7Fd8561c7a",
+    "supplyKey": "0xB9e92b4B4F52FA7437C81eCfF2E89e7Fd8561c7a",
     "adminKey": "Contract-controlled",
+    "created": true,
+    "createdBy": "Contract (HIP-1028 Split)"
+  },
+  "fcdrTokenInfo": {
+    "name": "Future CDR",
+    "symbol": "FCDR",
+    "decimals": 0,
+    "tokenAddress": "0x0000000000000000000000000000000000690384",
+    "tokenId": "0.0.6882180",
+    "treasury": "0xB9e92b4B4F52FA7437C81eCfF2E89e7Fd8561c7a",
+    "supplyKey": "0xB9e92b4B4F52FA7437C81eCfF2E89e7Fd8561c7a",
+    "adminKey": "Contract-controlled",
+    "wipeKey": "Contract-controlled",
     "created": true,
     "createdBy": "Contract (HIP-1028 Split)"
   },
@@ -26,14 +39,14 @@
     "totalLPTokens": "10000000",
     "totalValue": "1000000000",
     "initialized": true,
-    "initializedAt": "2025-09-21T23:14:14.029Z",
+    "initializedAt": "2025-09-22T03:27:04.062Z",
     "initializedBy": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
-    "initializationTx": "0x902c407eda94be7001800906af66ab075f30a91133b7db2caeef0f8c7c52a3a6"
+    "initializationTx": "0x0680cb1f46505c68760e8201d039683fffb964d93abebbc4b728c82933c85165"
   },
-  "deployedAt": "2025-09-21T23:14:06.067Z",
-  "deploymentBlock": 25225270,
-  "deploymentTxHash": "0x7afd34f903a37a05ff1c2defc2e10b4d1219abaa6bfb6cb94b13f5a47a28e41f",
-  "tokenCreationTxHash": "0xaffd1233931c6d7ec07737c8487a250fff664ec96c2efe4f57397a907360022f",
+  "deployedAt": "2025-09-22T03:26:54.320Z",
+  "deploymentBlock": 25232852,
+  "deploymentTxHash": "0x96313600bfaae2e8a77d107167ed4741a88119fbf60671cfba9336433b10b299",
+  "tokenCreationTxHash": "0xb400e70595399cb816f31dee5ae00d02ffa0e5113d8c0edf9200a4ece77b9c28",
   "gasUsedDeployment": "See deployment transaction",
   "gasUsedTokenCreation": "8000000",
   "version": "3.0.0",
@@ -42,9 +55,11 @@
     "HIP-1028 Token Creation",
     "Self-Treasury Management",
     "Integrated LP Token",
+    "FCDR Token Creation",
     "Value-Based Distribution",
     "HTS Integration",
     "Slippage Protection",
-    "Emergency Controls"
+    "Emergency Controls",
+    "Emergency Withdrawal Tracking"
   ]
 }

@@ -1,15 +1,15 @@
-import { ethers } from 'ethers';
-import fs from 'fs';
-import dotenv from 'dotenv';
+import { ethers } from "ethers";
+import fs from "fs";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 // Debug: Normalize paths for comparison
 const normalizePath = (path) => {
   return path
-    .replace(/^file:\/\//, '') // Remove file:// protocol
-    .replace(/\\/g, '/') // Convert backslashes to forward slashes
-    .replace(/^\/+/, '') // Remove leading slashes
+    .replace(/^file:\/\//, "") // Remove file:// protocol
+    .replace(/\\/g, "/") // Convert backslashes to forward slashes
+    .replace(/^\/+/, "") // Remove leading slashes
     .toLowerCase(); // Make case-insensitive
 };
 
@@ -23,71 +23,96 @@ async function testPoolV3() {
     // Load deployment info
     let deploymentInfo;
     try {
-      const deploymentData = fs.readFileSync('clearsky-pool-v3-deployment.json', 'utf8');
+      const deploymentData = fs.readFileSync(
+        "clearsky-pool-v3-deployment.json",
+        "utf8"
+      );
       deploymentInfo = JSON.parse(deploymentData);
-      console.log(`📂 Loaded deployment info for pool at: ${deploymentInfo.contractAddress}`);
+      console.log(
+        `📂 Loaded deployment info for pool at: ${deploymentInfo.contractAddress}`
+      );
     } catch (error) {
-      console.error("❌ Could not load deployment info. Please run deployPoolV3.js first.");
+      console.error(
+        "❌ Could not load deployment info. Please run deployPoolV3.js first."
+      );
       throw error;
     }
 
     // Setup provider and wallet
-    const network = process.env.NETWORK || 'testnet';
+    const network = process.env.NETWORK || "testnet";
     let rpcUrl;
-    
-    if (network === 'mainnet') {
+
+    if (network === "mainnet") {
       rpcUrl = process.env.HEDERA_MAINNET_RPC_URL;
     } else {
       rpcUrl = process.env.HEDERA_TESTNET_RPC_URL;
     }
-    
+
     if (!rpcUrl) {
       throw new Error(`Missing ${network.toUpperCase()}_RPC_URL in .env file`);
     }
-    
+
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
       ensAddress: null,
-      nameResolver: null
+      nameResolver: null,
     });
-    
+
     const privateKey = process.env.PRIVATE_KEY;
     if (!privateKey) {
       throw new Error("Missing PRIVATE_KEY in .env file");
     }
-    
+
     const signer = new ethers.Wallet(privateKey, provider);
     console.log(`👤 Testing with account: ${signer.address}`);
-    console.log(`💰 Account balance: ${ethers.formatEther(await provider.getBalance(signer.address))} HBAR`);
+    console.log(
+      `💰 Account balance: ${ethers.formatEther(
+        await provider.getBalance(signer.address)
+      )} HBAR`
+    );
 
     // Load contract ABI and connect to deployed contract
-    const contractPath = './artifacts/contracts/ClearSkyLiquidityPoolV3.sol/ClearSkyLiquidityPoolV3.json';
+    const contractPath =
+      "./artifacts/contracts/ClearSkyLiquidityPoolV3.sol/ClearSkyLiquidityPoolV3.json";
     if (!fs.existsSync(contractPath)) {
-      throw new Error("Contract artifacts not found. Run 'npx hardhat compile' first.");
+      throw new Error(
+        "Contract artifacts not found. Run 'npx hardhat compile' first."
+      );
     }
-    
-    const contractArtifact = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
-    const { abi } = contractArtifact;
-    
-    const poolContract = new ethers.Contract(deploymentInfo.contractAddress, abi, signer);
 
-    console.log(`🔗 Connected to pool contract at: ${deploymentInfo.contractAddress}`);
+    const contractArtifact = JSON.parse(fs.readFileSync(contractPath, "utf8"));
+    const { abi } = contractArtifact;
+
+    const poolContract = new ethers.Contract(
+      deploymentInfo.contractAddress,
+      abi,
+      signer
+    );
+
+    console.log(
+      `🔗 Connected to pool contract at: ${deploymentInfo.contractAddress}`
+    );
 
     // Check if pool is initialized
-    const [totalHBAR, totalLPTokens, totalValue] = await poolContract.getPoolInfo();
+    const [totalHBAR, totalLPTokens, totalValue] =
+      await poolContract.getPoolInfo();
     if (totalLPTokens == 0) {
-      console.log(`❌ Pool is not initialized! Please run initializePoolV3.js first.`);
+      console.log(
+        `❌ Pool is not initialized! Please run initializePoolV3.js first.`
+      );
       return;
     }
 
     console.log(`\n📊 Current Pool State:`);
     console.log(`   • Total HBAR: ${ethers.formatUnits(totalHBAR, 8)} HBAR`);
-    console.log(`   • Total LP Tokens: ${ethers.formatUnits(totalLPTokens, 6)} CSLPV3`);
+    console.log(
+      `   • Total LP Tokens: ${ethers.formatUnits(totalLPTokens, 6)} CSLPV3`
+    );
     console.log(`   • Total Value: ${ethers.formatUnits(totalValue, 8)} HBAR`);
 
     // Get token info
     const tokenInfo = await poolContract.getTokenInfo();
     const lpTokenAddress = await poolContract.lpToken();
-    
+
     console.log(`\n🪙 Token Information:`);
     console.log(`   • Name: ${tokenInfo.name}`);
     console.log(`   • Symbol: ${tokenInfo.symbol}`);
@@ -95,24 +120,38 @@ async function testPoolV3() {
 
     // Test adding liquidity
     const testAmount = ethers.parseUnits("5", 18); // 5 HBAR (ethers uses 18 decimals internally)
-    console.log(`\n💧 Testing addLiquidity with ${ethers.formatEther(testAmount)} HBAR...`);
+    console.log(
+      `\n💧 Testing addLiquidity with ${ethers.formatEther(testAmount)} HBAR...`
+    );
 
     // Calculate expected LP tokens
-    const expectedLPTokens = await poolContract.calculateLPTokens(ethers.parseUnits("5", 8)); // Convert to 8 decimals for contract
-    console.log(`🔢 Expected LP Tokens: ${ethers.formatUnits(expectedLPTokens, 6)} CSLPV3`);
+    const expectedLPTokens = await poolContract.calculateLPTokens(
+      ethers.parseUnits("5", 8)
+    ); // Convert to 8 decimals for contract
+    console.log(
+      `🔢 Expected LP Tokens: ${ethers.formatUnits(expectedLPTokens, 6)} CSLPV3`
+    );
     console.log(`🔢 Expected LP Tokens (raw): ${expectedLPTokens.toString()}`);
-    
+
     // Apply considerable slippage tolerance for HTS fees (allow 20% less than expected)
     const slippageTolerance = 10000; // 20%
-    const minLPTokensWithSlippage = (expectedLPTokens * BigInt(10000 - slippageTolerance)) / BigInt(10000);
-    console.log(`🛡️ Min LP Tokens (with ${slippageTolerance}% slippage): ${ethers.formatUnits(minLPTokensWithSlippage, 6)} CSLPV3`);
+    const minLPTokensWithSlippage =
+      (expectedLPTokens * BigInt(10000 - slippageTolerance)) / BigInt(10000);
+    console.log(
+      `🛡️ Min LP Tokens (with ${slippageTolerance}% slippage): ${ethers.formatUnits(
+        minLPTokensWithSlippage,
+        6
+      )} CSLPV3`
+    );
 
     // Simulate the transaction first
     console.log(`🎭 Simulating addLiquidity transaction...`);
     try {
       await poolContract.addLiquidity.staticCall(
         minLPTokensWithSlippage, // minLPTokens with slippage tolerance
-        { 
+        ethers.parseUnits("50", 2), // usdAmount: $50.00 (2 decimals)
+        ethers.parseUnits("110", 2), // maturationAmount: $110.00 (2 decimals)
+        {
           value: testAmount,
         }
       );
@@ -126,7 +165,9 @@ async function testPoolV3() {
     console.log(`📝 Executing addLiquidity transaction...`);
     const tx = await poolContract.addLiquidity(
       minLPTokensWithSlippage, // minLPTokens with slippage tolerance
-      { 
+      ethers.parseUnits("50", 2), // usdAmount: $50.00 (2 decimals)
+      ethers.parseUnits("110", 2), // maturationAmount: $110.00 (2 decimals)
+      {
         value: testAmount,
       }
     );
@@ -140,9 +181,11 @@ async function testPoolV3() {
       console.log(`✅ Transaction confirmed in block ${receipt.blockNumber}`);
       console.log(`⛽ Gas used: ${receipt.gasUsed.toString()}`);
     } catch (waitError) {
-      console.log(`❌ Transaction failed, but let's check the receipt for debugging...`);
+      console.log(
+        `❌ Transaction failed, but let's check the receipt for debugging...`
+      );
       console.log(`⛽ Error: ${waitError.message}`);
-      
+
       // Even if transaction failed, we can still get the receipt to see events
       if (waitError.receipt) {
         receipt = waitError.receipt;
@@ -157,9 +200,13 @@ async function testPoolV3() {
           console.log(`📄 Retrieved failed transaction receipt:`);
           console.log(`   • Block: ${receipt.blockNumber}`);
           console.log(`   • Gas used: ${receipt.gasUsed.toString()}`);
-          console.log(`   • Status: ${receipt.status} (0 = failed, 1 = success)`);
+          console.log(
+            `   • Status: ${receipt.status} (0 = failed, 1 = success)`
+          );
         } catch (receiptError) {
-          console.log(`❌ Could not retrieve transaction receipt: ${receiptError.message}`);
+          console.log(
+            `❌ Could not retrieve transaction receipt: ${receiptError.message}`
+          );
           throw waitError; // Re-throw original error
         }
       }
@@ -175,7 +222,9 @@ async function testPoolV3() {
     let eventCount = 0;
 
     if (!receipt.logs || receipt.logs.length === 0) {
-      console.log(`⚠️ No events found - transaction may have failed very early`);
+      console.log(
+        `⚠️ No events found - transaction may have failed very early`
+      );
     }
 
     for (let i = 0; i < receipt.logs.length; i++) {
@@ -183,81 +232,113 @@ async function testPoolV3() {
       try {
         const parsedLog = poolContract.interface.parseLog(log);
         console.log(`parsedLog: ${parsedLog}`);
-        
+
         if (parsedLog) {
           eventCount++;
           console.log(`   🎯 Event ${eventCount}: ${parsedLog.name}`);
-          
+
           switch (parsedLog.name) {
-            case 'LiquidityAdded':
+            case "LiquidityAdded":
               console.log(`      • User: ${parsedLog.args.user}`);
-              console.log(`      • HBAR Amount: ${ethers.formatUnits(parsedLog.args.hbarAmount, 8)} HBAR`);
-              console.log(`      • LP Tokens Minted: ${ethers.formatUnits(parsedLog.args.lpTokensMinted, 6)} CSLPV3`);
-              console.log(`      • Timestamp: ${new Date(Number(parsedLog.args.timestamp) * 1000).toISOString()}`);
+              console.log(
+                `      • HBAR Amount: ${ethers.formatUnits(
+                  parsedLog.args.hbarAmount,
+                  8
+                )} HBAR`
+              );
+              console.log(
+                `      • LP Tokens Minted: ${ethers.formatUnits(
+                  parsedLog.args.lpTokensMinted,
+                  6
+                )} CSLPV3`
+              );
+              console.log(
+                `      • Timestamp: ${new Date(
+                  Number(parsedLog.args.timestamp) * 1000
+                ).toISOString()}`
+              );
               liquidityAdded = true;
               lpTokensMinted = parsedLog.args.lpTokensMinted;
               break;
 
-            case 'HTSMintSuccess':
+            case "HTSMintSuccess":
               console.log(`      • Token: ${parsedLog.args.token}`);
               console.log(`      • To: ${parsedLog.args.to}`);
-              console.log(`      • Amount: ${parsedLog.args.amount.toString()}`);
-              console.log(`      • New Total Supply: ${parsedLog.args.newTotalSupply.toString()}`);
+              console.log(
+                `      • Amount: ${parsedLog.args.amount.toString()}`
+              );
+              console.log(
+                `      • New Total Supply: ${parsedLog.args.newTotalSupply.toString()}`
+              );
               htsMintSuccess = true;
               break;
 
-            case 'HTSTransferSuccess':
+            case "HTSTransferSuccess":
               console.log(`      • Token: ${parsedLog.args.token}`);
               console.log(`      • From: ${parsedLog.args.from}`);
               console.log(`      • To: ${parsedLog.args.to}`);
-              console.log(`      • Amount: ${parsedLog.args.amount.toString()}`);
+              console.log(
+                `      • Amount: ${parsedLog.args.amount.toString()}`
+              );
               htsTransferSuccess = true;
               break;
 
-            case 'HTSAssociateSuccess':
+            case "HTSAssociateSuccess":
               console.log(`      • Token: ${parsedLog.args.token}`);
               console.log(`      • Account: ${parsedLog.args.account}`);
               htsAssociateSuccess = true;
               break;
 
-            case 'HTSAssociateSkipped':
+            case "HTSAssociateSkipped":
               console.log(`      • Token: ${parsedLog.args.token}`);
               console.log(`      • Account: ${parsedLog.args.account}`);
               console.log(`      • Reason: ${parsedLog.args.reason}`);
               htsAssociateSuccess = true; // Skipped means already associated
               break;
 
-            case 'HTSMintFailed':
+            case "HTSMintFailed":
               console.log(`      • ❌ Token: ${parsedLog.args.token}`);
               console.log(`      • ❌ To: ${parsedLog.args.to}`);
-              console.log(`      • ❌ Amount: ${parsedLog.args.amount.toString()}`);
-              console.log(`      • ❌ Response Code: ${parsedLog.args.responseCode}`);
+              console.log(
+                `      • ❌ Amount: ${parsedLog.args.amount.toString()}`
+              );
+              console.log(
+                `      • ❌ Response Code: ${parsedLog.args.responseCode}`
+              );
               break;
 
-            case 'HTSTransferFailed':
+            case "HTSTransferFailed":
               console.log(`      • ❌ Token: ${parsedLog.args.token}`);
               console.log(`      • ❌ From: ${parsedLog.args.from}`);
               console.log(`      • ❌ To: ${parsedLog.args.to}`);
-              console.log(`      • ❌ Amount: ${parsedLog.args.amount.toString()}`);
-              console.log(`      • ❌ Response Code: ${parsedLog.args.responseCode}`);
+              console.log(
+                `      • ❌ Amount: ${parsedLog.args.amount.toString()}`
+              );
+              console.log(
+                `      • ❌ Response Code: ${parsedLog.args.responseCode}`
+              );
               break;
 
-            case 'HTSMintAttempt':
+            case "HTSMintAttempt":
               console.log(`      • 🔄 Token: ${parsedLog.args.token}`);
               console.log(`      • 🔄 To: ${parsedLog.args.to}`);
-              console.log(`      • 🔄 Amount: ${parsedLog.args.amount.toString()}`);
+              console.log(
+                `      • 🔄 Amount: ${parsedLog.args.amount.toString()}`
+              );
               break;
 
-            case 'HTSAssociateAttempt':
+            case "HTSAssociateAttempt":
               console.log(`      • 🔄 Token: ${parsedLog.args.token}`);
               console.log(`      • 🔄 Account: ${parsedLog.args.account}`);
               break;
 
-            case 'HTSTransferAttempt':
+            case "HTSTransferAttempt":
               console.log(`      • 🔄 Token: ${parsedLog.args.token}`);
               console.log(`      • 🔄 From: ${parsedLog.args.from}`);
               console.log(`      • 🔄 To: ${parsedLog.args.to}`);
-              console.log(`      • 🔄 Amount: ${parsedLog.args.amount.toString()}`);
+              console.log(
+                `      • 🔄 Amount: ${parsedLog.args.amount.toString()}`
+              );
               break;
 
             default:
@@ -265,12 +346,16 @@ async function testPoolV3() {
           }
         }
       } catch (error) {
-        console.log(`   Event ${i + 1}: Could not parse (might be external event)`);
+        console.log(
+          `   Event ${i + 1}: Could not parse (might be external event)`
+        );
       }
     }
 
     if (eventCount === 0) {
-      console.log(`⚠️ No contract events were emitted - this suggests the transaction failed very early`);
+      console.log(
+        `⚠️ No contract events were emitted - this suggests the transaction failed very early`
+      );
       console.log(`💡 Possible causes:`);
       console.log(`   • Insufficient gas`);
       console.log(`   • Contract revert before any events`);
@@ -281,21 +366,30 @@ async function testPoolV3() {
 
     // Verify pool state after adding liquidity (even if failed)
     console.log(`\n🔍 Verifying pool state after liquidity addition...`);
-    const [newTotalHBAR, newTotalLPTokens, newTotalValue] = await poolContract.getPoolInfo();
-    
+    const [newTotalHBAR, newTotalLPTokens, newTotalValue] =
+      await poolContract.getPoolInfo();
+
     console.log(`📊 Pool State After Adding Liquidity:`);
     console.log(`   • Total HBAR: ${ethers.formatUnits(newTotalHBAR, 8)} HBAR`);
-    console.log(`   • Total LP Tokens: ${ethers.formatUnits(newTotalLPTokens, 6)} CSLPV3`);
-    console.log(`   • Total Value: ${ethers.formatUnits(newTotalValue, 8)} HBAR`);
+    console.log(
+      `   • Total LP Tokens: ${ethers.formatUnits(newTotalLPTokens, 6)} CSLPV3`
+    );
+    console.log(
+      `   • Total Value: ${ethers.formatUnits(newTotalValue, 8)} HBAR`
+    );
 
     // Calculate value per LP token
     const valuePerLPToken = await poolContract.getValuePerLPToken();
-    console.log(`   • Value per LP Token: ${ethers.formatUnits(valuePerLPToken, 8)} HBAR`);
+    console.log(
+      `   • Value per LP Token: ${ethers.formatUnits(valuePerLPToken, 8)} HBAR`
+    );
 
     // Check final balances
     console.log(`\n💰 Final Balances:`);
     const finalBalance = await provider.getBalance(signer.address);
-    console.log(`   • Your HBAR Balance: ${ethers.formatEther(finalBalance)} HBAR`);
+    console.log(
+      `   • Your HBAR Balance: ${ethers.formatEther(finalBalance)} HBAR`
+    );
     console.log(`   • Your LP Balance: Check with HTS explorer or wallet`);
 
     // Test results summary
@@ -311,7 +405,9 @@ async function testPoolV3() {
       console.log(`🪙 Users receive LP tokens as expected!`);
       console.log(`🔄 HTS integration is functioning properly!`);
     } else {
-      console.log(`\n⚠️ Some tests failed. Check the events above for details.`);
+      console.log(
+        `\n⚠️ Some tests failed. Check the events above for details.`
+      );
     }
 
     return {
@@ -321,16 +417,15 @@ async function testPoolV3() {
         liquidityAdded,
         htsMintSuccess,
         htsTransferSuccess,
-        htsAssociateSuccess
+        htsAssociateSuccess,
       },
       poolState: {
         totalHBAR: newTotalHBAR,
         totalLPTokens: newTotalLPTokens,
         totalValue: newTotalValue,
-        valuePerLPToken: valuePerLPToken
-      }
+        valuePerLPToken: valuePerLPToken,
+      },
     };
-
   } catch (error) {
     console.error(`❌ Pool V3 test failed:`, error);
     throw error;
