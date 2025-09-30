@@ -44,9 +44,10 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     struct PurchaseMetadata {
         uint256 hbarAmount;        // HBAR used for this purchase
         uint256 timestamp;         // Date and time of purchase
-        uint256 numUsed;           // The calculated CSLP amount (for reference)
+        uint256 numUsed;           // The calculated maturation amount (for reference)
+        uint256 cslpTokensMinted;  // Actual CSLP tokens minted in this purchase
         address purchaser;         // Wallet address of the buyer
-        uint256 purchaseId;        // Unique purchase ID
+        address lpAddress;         // Liquidity pool contract address
     }
     
     // FCDR token metadata for tracking emergency withdrawals
@@ -281,12 +282,13 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     }
     
     /**
-     * @notice Add liquidity to the pool - Always mints exactly 1 CSLP token per transaction
-     * @param minLPTokens Minimum LP tokens expected (slippage protection) - should be 1
+     * @notice Add liquidity to the pool - Conditionally mints CSLP tokens
+     * @param minLPTokens Minimum LP tokens expected (slippage protection)
      * @param usdAmount Amount in USD (2 decimals, e.g., 1000 = $10.00)
      * @param maturationAmount Maturation amount in USD (2 decimals, e.g., 11000 = $110.00)
+     * @param cslpTokensToMint Number of CSLP tokens to mint (0 = no minting, just accept HBAR; >0 = mint tokens)
      */
-    function addLiquidity(uint256 minLPTokens, uint256 usdAmount, uint256 maturationAmount) 
+    function addLiquidity(uint256 minLPTokens, uint256 usdAmount, uint256 maturationAmount, uint256 cslpTokensToMint) 
         external 
         payable 
         nonReentrant 
@@ -297,50 +299,57 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         require(msg.value > 0, "No HBAR provided");
         require(usdAmount > 0, "USD amount must be greater than 0");
         require(maturationAmount > 0, "Maturation amount must be greater than 0");
+        require(cslpTokensToMint >= 0, "CSLP tokens to mint cannot be negative");
         
-        // Calculate what the CSLP amount would be using USD-based calculation (for reference in metadata)
-        uint256 calculatedCSLP = calculateCSLPFromUSD(usdAmount, maturationAmount);
-        
-        // 🎯 ALWAYS MINT EXACTLY 1 CSLP TOKEN PER TRANSACTION
-        uint256 lpTokensToMint = 1000000; // Always 1 token per transaction (1 * 10^6 for 6 decimals)
-        require(lpTokensToMint >= minLPTokens, "Slippage exceeded");
+        // Calculate what the maturation amount would be using USD-based calculation (for reference in metadata)
+        uint256 calculatedMaturation = calculateCSLPFromUSD(usdAmount, maturationAmount);
         
         // Update pool state
         totalHBAR += msg.value;
         totalValue += msg.value;
         
-        // Mint exactly 1 LP token using HTS
-        int64 mintAmount = int64(uint64(lpTokensToMint));
-        emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
-        
-        // Step 1: Mint tokens to contract (treasury account)
-        (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
-        
-        if (responseCode == HederaResponseCodes.SUCCESS) {
-            // Step 2: Transfer tokens from contract to user (association handled externally)
-            emit HTSTransferAttempt(lpToken, address(this), msg.sender, mintAmount);
-            int transferResponseCode = transferToken(lpToken, address(this), msg.sender, mintAmount);
+        // 🎯 CONDITIONAL CSLP MINTING: Only mint if cslpTokensToMint > 0
+        if (cslpTokensToMint > 0) {
+            uint256 lpTokensToMint = cslpTokensToMint; // Use the parameter value
+            require(lpTokensToMint >= minLPTokens, "Slippage exceeded");
             
-            if (transferResponseCode == HederaResponseCodes.SUCCESS) {
-                totalLPTokens += lpTokensToMint;
-                emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
-                emit HTSTransferSuccess(lpToken, address(this), msg.sender, mintAmount);
+            // Mint CSLP tokens using HTS
+            int64 mintAmount = int64(uint64(lpTokensToMint));
+            emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
+            
+            // Step 1: Mint tokens to contract (treasury account)
+            (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
+            
+            if (responseCode == HederaResponseCodes.SUCCESS) {
+                // Step 2: Transfer tokens from contract to user (association handled externally)
+                emit HTSTransferAttempt(lpToken, address(this), msg.sender, mintAmount);
+                int transferResponseCode = transferToken(lpToken, address(this), msg.sender, mintAmount);
+                
+                if (transferResponseCode == HederaResponseCodes.SUCCESS) {
+                    totalLPTokens += lpTokensToMint;
+                    emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
+                    emit HTSTransferSuccess(lpToken, address(this), msg.sender, mintAmount);
+                } else {
+                    emit HTSTransferFailed(lpToken, address(this), msg.sender, mintAmount, int32(transferResponseCode));
+                    revert("HTS token transfer failed");
+                }
             } else {
-                emit HTSTransferFailed(lpToken, address(this), msg.sender, mintAmount, int32(transferResponseCode));
-                revert("HTS token transfer failed");
+                emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
+                revert("HTS token minting failed");
             }
         } else {
-            emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
-            revert("HTS token minting failed");
+            // No CSLP tokens to mint, just accept HBAR
+            // Event will be emitted at the end of the function
         }
         
         // 🎯 STORE METADATA FOR THIS PURCHASE
         purchaseMetadata[totalPurchases] = PurchaseMetadata({
             hbarAmount: msg.value,           // HBAR used for this purchase
             timestamp: block.timestamp,      // Date and time
-            numUsed: calculatedCSLP,         // The calculated CSLP amount (for reference)
+            numUsed: calculatedMaturation,   // The calculated maturation amount (for reference)
+            cslpTokensMinted: cslpTokensToMint, // Actual CSLP tokens minted in this purchase
             purchaser: msg.sender,           // Wallet address of the buyer
-            purchaseId: totalPurchases       // Unique purchase ID
+            lpAddress: address(this)        // Liquidity pool contract address
         });
         
         // 🎯 TRACK WHICH USER MADE WHICH PURCHASE
@@ -350,7 +359,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         emit LiquidityAdded(
             msg.sender, 
             msg.value, 
-            lpTokensToMint,
+            cslpTokensToMint,
             block.timestamp
         );
     }
@@ -717,10 +726,10 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     }
     
     /**
-     * @notice Emergency withdrawal (Owner only, when paused)
+     * @notice HBAR withdrawal (Owner only, when paused)
      * @dev Mints FCDR token before transferring HBAR to owner
      */
-    function emergencyWithdraw() external onlyOwner whenPaused {
+    function HBAR_withdrawal() external onlyOwner whenPaused {
         uint256 balance = address(this).balance;
         require(balance > 0, "No HBAR to withdraw");
         require(fcdrToken != address(0), "FCDR token not created");
@@ -730,11 +739,23 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         
         // Step 2: Transfer all HBAR to owner
         (bool success, ) = payable(owner()).call{value: balance}("");
-        require(success, "Emergency withdrawal failed");
+        require(success, "HBAR withdrawal failed");
         
         emit FeesCollected(owner(), balance, block.timestamp);
     }
     
+    /**
+     * @notice emergency withdrawal (Owner only, when paused)
+     */
+    function emergencyWithdraw() external onlyOwner whenPaused {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No HBAR to withdraw");
+        
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Emergency withdrawal failed");
+        
+        emit FeesCollected(owner(), balance, block.timestamp);
+    }
     
     /**
      * @notice Mint FCDR token to pool (internal function)
