@@ -8,14 +8,31 @@ import "./HederaTokenService.sol";
 import "./HederaResponseCodes.sol";
 import "./KeyHelper.sol";
 
+// Interface for factory contract
+interface IClearSkyFactory {
+    function mintCSLP(address user, uint256 amount) external;
+    function mintFCDR(address poolAddress) external;
+    function burnCSLP(uint256 amount) external;
+}
+
+
 /**
  * @title ClearSky HBAR-Only Liquidity Pool V3
  * @notice A simplified liquidity pool that accepts only HBAR with split token creation
  * @dev Built for Hedera network with HTS LP tokens using HIP-1028 (split deployment)
  */
 contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTokenService, KeyHelper {
-    // LP Token address (created after deployment)
-    address public lpToken;
+    // Factory contract address
+    address public immutable factory;
+    
+    // Pool user (the user this pool belongs to - for tracking only)
+    address public immutable poolUser;
+    
+    // Shared tokens (set by factory)
+    address public immutable cslpToken;
+    address public immutable fcdrToken;
+    
+    // Note: Using shared cslpToken from factory instead of individual lpToken
     
     // Pool state
     uint256 public totalHBAR;
@@ -29,16 +46,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     // Minimum liquidity amounts
     uint256 public constant MIN_LIQUIDITY = 100000; // 0.001 HBAR in wei (8 decimals)
     
-    // Token creation info
-    struct TokenInfo {
-        string name;
-        string symbol;
-        uint8 decimals;
-        address tokenAddress;
-        bool created;
-    }
-    
-    TokenInfo public tokenInfo;
+    // Note: TokenInfo struct removed - using shared cslpToken from factory
     
     // Purchase metadata for tracking individual purchases
     struct PurchaseMetadata {
@@ -64,20 +72,15 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     mapping(address => uint256[]) public userPurchases;  // Maps user address to their purchase IDs
     uint256 public totalPurchases;
     
-    // FCDR token info and storage
-    address public fcdrToken;
+    // FCDR token info and storage (fcdrToken is now immutable from constructor)
     mapping(uint256 => FCDRMetadata) public fcdrMetadata;
     mapping(address => uint256[]) public ownerFCDRs;  // Maps owner address to their FCDR IDs
     uint256 public totalFCDRs;
     
+    // Tracks if a user has already received CSLP from this pool (enforce 1 CSLP per user per pool)
+    mapping(address => bool) public hasReceivedCSLPFromThisPool;
+    
     // Events
-    event TokenCreated(
-        address indexed tokenAddress,
-        string name,
-        string symbol,
-        uint8 decimals,
-        address treasury
-    );
     
     event FCDRTokenCreated(
         address indexed tokenAddress,
@@ -114,6 +117,11 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         uint256 timestamp
     );
     
+    event TokensAssociated(
+        address indexed cslpToken,
+        address indexed fcdrToken
+    );
+    
     // HTS Events
     event HTSMintAttempt(address indexed token, address indexed to, int64 amount);
     event HTSMintSuccess(address indexed token, address indexed to, int64 amount, int64 newTotalSupply);
@@ -131,11 +139,9 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     event HTSBurnSuccess(address indexed token, int64 amount, int64 newTotalSupply);
     event HTSBurnFailed(address indexed token, int64 amount, int32 responseCode);
     
-    // Token Creation Error Event
-    event TokenCreationFailedEvent(int32 responseCode, string errorMessage);
+    // Note: TokenCreationFailedEvent removed - using shared tokens from factory
 
     // Custom errors
-    error TokenCreationFailed(int32 responseCode);
     error InsufficientHBAR();
     error InsufficientLPBalance();
     error PoolNotActive();
@@ -144,113 +150,73 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     error NoLiquidityProvided();
     error InsufficientInitialLiquidity();
     error PoolAlreadyInitialized();
-    error TokenNotCreated();
-    error TokenAlreadyCreated();
+    // Note: Token errors removed - using shared tokens from factory
     
     /**
-     * @notice Constructor - Simple setup without token creation
-     * @param _owner Owner of the contract
+     * @notice Constructor - Factory pattern setup with shared tokens
+     * @param _factory Factory contract address
+     * @param _poolUser User address this pool belongs to
+     * @param _cslpToken Shared CSLP token address
+     * @param _fcdrToken Shared FCDR token address
+     * @param _owner Global owner address who can administer this pool
      */
-    constructor(address _owner) Ownable(_owner) {
+    constructor(
+        address _factory,
+        address _poolUser,
+        address _cslpToken,
+        address _fcdrToken,
+        address _owner
+    ) Ownable(_owner) {
+        require(_factory != address(0), "Invalid factory address");
+        require(_poolUser != address(0), "Invalid pool user address");
+        require(_cslpToken != address(0), "Invalid CSLP token address");
+        require(_fcdrToken != address(0), "Invalid FCDR token address");
         require(_owner != address(0), "Invalid owner address");
         
-        // Initialize token info as not created
-        tokenInfo = TokenInfo({
-            name: "",
-            symbol: "",
-            decimals: 0,
-            tokenAddress: address(0),
-            created: false
-        });
+        factory = _factory;
+        poolUser = _poolUser;
+        cslpToken = _cslpToken;
+        fcdrToken = _fcdrToken;
+        
+        // Note: Token association will be handled by the frontend after pool creation
     }
     
     /**
-     * @notice Create LP token using HIP-1028 (Owner only, after deployment)
-     * @param _tokenName Name of the LP token
-     * @param _tokenSymbol Symbol of the LP token
+     * @notice Associate this contract with CSLP and FCDR tokens (Owner only)
+     * @dev This function must be called after pool creation to enable token operations
      */
-    function createLPToken(
-        string memory _tokenName,
-        string memory _tokenSymbol
-    ) external payable onlyOwner {
-        require(!tokenInfo.created, "Token already created");
-        require(bytes(_tokenName).length > 0, "Token name required");
-        require(bytes(_tokenSymbol).length > 0, "Token symbol required");
-        
-        // Create HederaToken struct - exactly like the working example
-        IHederaTokenService.HederaToken memory token;
-        token.name = _tokenName;
-        token.symbol = _tokenSymbol;
-        token.treasury = address(this); // 🎯 CONTRACT is treasury!
-        token.tokenKeys = new IHederaTokenService.TokenKey[](1);
-        
-        // Create supply key exactly like the working example
-        IHederaTokenService.TokenKey memory tokenKey = super.getSingleKey(KeyType.SUPPLY, KeyValueType.CONTRACT_ID, address(this));
-        token.tokenKeys[0] = tokenKey;
-        
-        // Create the fungible token with 6 decimals and 0 initial supply
-        (int responseCode, address tokenAddress) = HederaTokenService.createFungibleToken(token, 0, 6);
-        
+    function associateTokens() external onlyOwner {
+        // Associate with CSLP token
+        int responseCode = HederaTokenService.associateToken(address(this), cslpToken);
         if (responseCode != HederaResponseCodes.SUCCESS) {
-            // Emit detailed error information for debugging
-            emit TokenCreationFailedEvent(int32(responseCode), getErrorMessage(int32(responseCode)));
-            revert TokenCreationFailed(int32(responseCode));
+            revert(string(abi.encodePacked("CSLP token association failed: ", getErrorMessage(int32(responseCode)))));
         }
         
-        // Store token information
-        lpToken = tokenAddress;
-        tokenInfo = TokenInfo({
-            name: _tokenName,
-            symbol: _tokenSymbol,
-            decimals: 6,
-            tokenAddress: tokenAddress,
-            created: true
-        });
+        // Associate with FCDR token
+        responseCode = HederaTokenService.associateToken(address(this), fcdrToken);
+        if (responseCode != HederaResponseCodes.SUCCESS) {
+            revert(string(abi.encodePacked("FCDR token association failed: ", getErrorMessage(int32(responseCode)))));
+        }
         
-        emit TokenCreated(tokenAddress, _tokenName, _tokenSymbol, 6, address(this));
+        emit TokensAssociated(cslpToken, fcdrToken);
     }
     
-    /**
-     * @notice Create FCDR token using HIP-1028 (Owner only, after deployment)
-     * @dev Creates a non-tradable HTS token for tracking emergency withdrawals
-     */
-    function createFCDRToken() external payable onlyOwner {
-        require(fcdrToken == address(0), "FCDR token already created");
-        
-        // Create HederaToken struct - exactly like the working LP token example
-        IHederaTokenService.HederaToken memory token;
-        token.name = "Future CDR";
-        token.symbol = "FCDR";
-        token.treasury = address(this); // Contract is treasury
-        token.memo = "Non-tradable token representing emergency HBAR withdrawal from ClearSky pool";
-        token.tokenKeys = new IHederaTokenService.TokenKey[](2);
-        
-        // Supply key (this contract) - for minting FCDR tokens
-        token.tokenKeys[0] = super.getSingleKey(KeyType.SUPPLY, KeyValueType.CONTRACT_ID, address(this));
-        
-        // Wipe key (this contract) - for burn functionality (future use)
-        token.tokenKeys[1] = super.getSingleKey(KeyType.WIPE, KeyValueType.CONTRACT_ID, address(this));
-        
-        // Create the fungible token with 0 decimals and 0 initial supply
-        (int responseCode, address tokenAddress) = HederaTokenService.createFungibleToken(token, 0, 0);
-        
-        if (responseCode != HederaResponseCodes.SUCCESS) {
-            // Emit detailed error information for debugging
-            emit TokenCreationFailedEvent(int32(responseCode), getErrorMessage(int32(responseCode)));
-            revert TokenCreationFailed(int32(responseCode));
-        }
-        
-        fcdrToken = tokenAddress;
-        
-        emit FCDRTokenCreated(tokenAddress, "Future CDR", "FCDR", 0, address(this));
+    // Modifiers
+    modifier onlyPoolUser() {
+        require(msg.sender == poolUser, "Only pool user");
+        _;
     }
+    
+    // Note: createLPToken() function removed - using shared cslpToken from factory
+    
+    // Note: createFCDRToken() function removed - FCDR token is now created by factory and passed to pool
     
     /**
      * @notice Initialize the pool with initial HBAR liquidity (Owner only)
      * @dev This function must be called after token creation
      */
     function initializePool() external payable onlyOwner nonReentrant whenNotPaused {
-        require(tokenInfo.created, "Token not created");
+        require(cslpToken != address(0), "CSLP token not set");
         require(totalLPTokens == 0, "Pool already initialized");
         require(msg.value >= MIN_LIQUIDITY, "Insufficient initial liquidity");
         
@@ -262,21 +228,14 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         // HBAR has 8 decimals, LP token has 6 decimals
         uint256 lpTokenAmount = msg.value / 100; // Convert from 8 decimals to 6 decimals
         
-        // Mint initial LP tokens to caller using HTS (no fee for initialization)
-        int64 mintAmount = int64(uint64(lpTokenAmount));
-        emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
+        // Mint initial CSLP tokens to caller using factory
+        emit HTSMintAttempt(cslpToken, msg.sender, int64(uint64(lpTokenAmount)));
         
-        // Mint tokens to contract (treasury account)
-        (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
+        // Call factory to mint CSLP tokens
+        IClearSkyFactory(factory).mintCSLP(msg.sender, lpTokenAmount);
         
-        if (responseCode == HederaResponseCodes.SUCCESS) {
-            // For initialization, just mint and track - no transfer needed since treasury is user's account
-            totalLPTokens = lpTokenAmount;
-            emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
-        } else {
-            emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
-            revert("HTS token minting failed");
-        }
+        totalLPTokens = lpTokenAmount;
+        emit HTSMintSuccess(cslpToken, msg.sender, int64(uint64(lpTokenAmount)), 0); // newTotalSupply not available from factory
         
         emit LiquidityAdded(msg.sender, msg.value, lpTokenAmount, block.timestamp);
     }
@@ -294,12 +253,50 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         nonReentrant 
         whenNotPaused 
     {
-        require(tokenInfo.created, "Token not created");
-        require(totalLPTokens > 0, "Pool not initialized");
+        require(cslpToken != address(0), "CSLP token not set");
         require(msg.value > 0, "No HBAR provided");
         require(usdAmount > 0, "USD amount must be greater than 0");
         require(maturationAmount > 0, "Maturation amount must be greater than 0");
         require(cslpTokensToMint >= 0, "CSLP tokens to mint cannot be negative");
+        
+        // 🚀 AUTO-INITIALIZATION: If pool is not initialized, initialize it with first liquidity
+        if (totalLPTokens == 0) {
+            // This is the first liquidity addition - initialize the pool
+            totalHBAR = msg.value;
+            totalValue = msg.value;
+            
+            // 🎯 Enforce 1 CSLP per user per pool
+            uint256 desiredMint = hasReceivedCSLPFromThisPool[msg.sender] ? 0 : 1_000_000; // 1 CSLP with 6 decimals
+            if (desiredMint > 0) {
+                // Mint CSLP tokens using factory (factory has the supply key)
+                emit HTSMintAttempt(cslpToken, msg.sender, int64(uint64(desiredMint)));
+                IClearSkyFactory(factory).mintCSLP(msg.sender, desiredMint);
+                hasReceivedCSLPFromThisPool[msg.sender] = true;
+                totalLPTokens = desiredMint; // initialize supply to minted amount
+                emit HTSMintSuccess(cslpToken, msg.sender, int64(uint64(desiredMint)), 0);
+            } else {
+                // Should not happen on very first add by pool user, but keep safety
+                totalLPTokens = 1; // mark initialized
+            }
+            
+            // Store purchase metadata
+            PurchaseMetadata memory metadata = PurchaseMetadata({
+                hbarAmount: msg.value,
+                timestamp: block.timestamp,
+                numUsed: calculateCSLPFromUSD(usdAmount, maturationAmount),
+                cslpTokensMinted: desiredMint,
+                purchaser: msg.sender,
+                lpAddress: address(this)
+            });
+            
+            // Store metadata and track purchase
+            purchaseMetadata[totalPurchases] = metadata;
+            userPurchases[msg.sender].push(totalPurchases);
+            totalPurchases++;
+            
+            emit LiquidityAdded(msg.sender, msg.value, desiredMint, block.timestamp);
+            return; // Pool is now initialized, exit early
+        }
         
         // Calculate what the maturation amount would be using USD-based calculation (for reference in metadata)
         uint256 calculatedMaturation = calculateCSLPFromUSD(usdAmount, maturationAmount);
@@ -308,38 +305,14 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         totalHBAR += msg.value;
         totalValue += msg.value;
         
-        // 🎯 CONDITIONAL CSLP MINTING: Only mint if cslpTokensToMint > 0
-        if (cslpTokensToMint > 0) {
-            uint256 lpTokensToMint = cslpTokensToMint; // Use the parameter value
-            require(lpTokensToMint >= minLPTokens, "Slippage exceeded");
-            
-            // Mint CSLP tokens using HTS
-            int64 mintAmount = int64(uint64(lpTokensToMint));
-            emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
-            
-            // Step 1: Mint tokens to contract (treasury account)
-            (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
-            
-            if (responseCode == HederaResponseCodes.SUCCESS) {
-                // Step 2: Transfer tokens from contract to user (association handled externally)
-                emit HTSTransferAttempt(lpToken, address(this), msg.sender, mintAmount);
-                int transferResponseCode = transferToken(lpToken, address(this), msg.sender, mintAmount);
-                
-                if (transferResponseCode == HederaResponseCodes.SUCCESS) {
-                    totalLPTokens += lpTokensToMint;
-                    emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
-                    emit HTSTransferSuccess(lpToken, address(this), msg.sender, mintAmount);
-                } else {
-                    emit HTSTransferFailed(lpToken, address(this), msg.sender, mintAmount, int32(transferResponseCode));
-                    revert("HTS token transfer failed");
-                }
-            } else {
-                emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
-                revert("HTS token minting failed");
-            }
-        } else {
-            // No CSLP tokens to mint, just accept HBAR
-            // Event will be emitted at the end of the function
+        // 🎯 Enforce 1 CSLP per user per pool on subsequent adds
+        uint256 subsequentMint = hasReceivedCSLPFromThisPool[msg.sender] ? 0 : 1_000_000;
+        if (subsequentMint > 0) {
+            emit HTSMintAttempt(cslpToken, msg.sender, int64(uint64(subsequentMint)));
+            IClearSkyFactory(factory).mintCSLP(msg.sender, subsequentMint);
+            hasReceivedCSLPFromThisPool[msg.sender] = true;
+            totalLPTokens += subsequentMint;
+            emit HTSMintSuccess(cslpToken, msg.sender, int64(uint64(subsequentMint)), 0);
         }
         
         // 🎯 STORE METADATA FOR THIS PURCHASE
@@ -347,7 +320,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
             hbarAmount: msg.value,           // HBAR used for this purchase
             timestamp: block.timestamp,      // Date and time
             numUsed: calculatedMaturation,   // The calculated maturation amount (for reference)
-            cslpTokensMinted: cslpTokensToMint, // Actual CSLP tokens minted in this purchase
+            cslpTokensMinted: subsequentMint, // Actual CSLP tokens minted in this purchase
             purchaser: msg.sender,           // Wallet address of the buyer
             lpAddress: address(this)        // Liquidity pool contract address
         });
@@ -359,7 +332,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         emit LiquidityAdded(
             msg.sender, 
             msg.value, 
-            cslpTokensToMint,
+            subsequentMint,
             block.timestamp
         );
     }
@@ -380,7 +353,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         nonReentrant 
         whenNotPaused 
     {
-        require(tokenInfo.created, "Token not created");
+        require(cslpToken != address(0), "CSLP token not set");
         require(totalLPTokens > 0, "Pool not initialized");
         require(msg.value > 0, "No HBAR provided");
         require(usdAmount > 0, "USD amount must be greater than 0");
@@ -394,30 +367,14 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         totalHBAR += msg.value;
         totalValue += msg.value;
         
-        // Mint exact CSLP tokens to user using HTS
-        int64 mintAmount = int64(uint64(cslpTokensToMint));
-        emit HTSMintAttempt(lpToken, msg.sender, mintAmount);
+        // Mint exact CSLP tokens to user using factory
+        emit HTSMintAttempt(cslpToken, msg.sender, int64(uint64(cslpTokensToMint)));
         
-        // Step 1: Mint tokens to contract (treasury account)
-        (int responseCode, int64 newTotalSupply, ) = mintToken(lpToken, mintAmount, new bytes[](0));
+        // Call factory to mint CSLP tokens
+        IClearSkyFactory(factory).mintCSLP(msg.sender, cslpTokensToMint);
         
-        if (responseCode == HederaResponseCodes.SUCCESS) {
-            
-            emit HTSTransferAttempt(lpToken, address(this), msg.sender, mintAmount);
-            int transferResponseCode = transferToken(lpToken, address(this), msg.sender, mintAmount);
-            
-            if (transferResponseCode == HederaResponseCodes.SUCCESS) {
-                totalLPTokens += cslpTokensToMint;
-                emit HTSMintSuccess(lpToken, msg.sender, mintAmount, newTotalSupply);
-                emit HTSTransferSuccess(lpToken, address(this), msg.sender, mintAmount);
-            } else {
-                emit HTSTransferFailed(lpToken, address(this), msg.sender, mintAmount, int32(transferResponseCode));
-                revert("HTS token transfer failed");
-            }
-        } else {
-            emit HTSMintFailed(lpToken, msg.sender, mintAmount, int32(responseCode));
-            revert("HTS token minting failed");
-        }
+        totalLPTokens += cslpTokensToMint;
+        emit HTSMintSuccess(cslpToken, msg.sender, int64(uint64(cslpTokensToMint)), 0); // newTotalSupply not available from factory
         
         emit LiquidityAdded(
             msg.sender, 
@@ -437,7 +394,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         nonReentrant 
         whenNotPaused 
     {
-        require(tokenInfo.created, "Token not created");
+        require(cslpToken != address(0), "CSLP token not set");
         require(lpTokenAmount > 0, "No LP tokens specified");
         require(totalLPTokens > 0, "No liquidity in pool");
         
@@ -451,31 +408,18 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         totalLPTokens -= lpTokenAmount;
         totalValue -= hbarToReturn;
         
-        // Burn LP tokens using HTS
-        int64 burnAmount = int64(uint64(lpTokenAmount));
-        int64[] memory serialNumbers = new int64[](0); // Empty for fungible tokens
+        // Burn CSLP tokens using factory
+        emit HTSBurnAttempt(cslpToken, int64(uint64(lpTokenAmount)), new int64[](0));
         
-        emit HTSBurnAttempt(lpToken, burnAmount, serialNumbers);
+        IClearSkyFactory(factory).burnCSLP(lpTokenAmount);
         
-        (int responseCode, int64 newTotalSupply) = burnToken(lpToken, burnAmount, serialNumbers);
+        emit HTSBurnSuccess(cslpToken, int64(uint64(lpTokenAmount)), 0); // newTotalSupply not available from factory
         
-        if (responseCode == HederaResponseCodes.SUCCESS) {
-            emit HTSBurnSuccess(lpToken, burnAmount, newTotalSupply);
-            
-            // Transfer HBAR to user
-            (bool success, ) = payable(msg.sender).call{value: hbarToReturn}("");
-            require(success, "HBAR transfer failed");
-            
-            emit LiquidityRemoved(msg.sender, hbarToReturn, lpTokenAmount, block.timestamp);
-        } else {
-            // Revert pool state changes if burn failed
-            totalHBAR += hbarToReturn;
-            totalLPTokens += lpTokenAmount;
-            totalValue += hbarToReturn;
-            
-            emit HTSBurnFailed(lpToken, burnAmount, int32(responseCode));
-            revert("HTS token burning failed");
-        }
+        // Transfer HBAR to user
+        (bool success, ) = payable(msg.sender).call{value: hbarToReturn}("");
+        require(success, "HBAR transfer failed");
+        
+        emit LiquidityRemoved(msg.sender, hbarToReturn, lpTokenAmount, block.timestamp);
     }
     
     /**
@@ -537,7 +481,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         view 
         returns (uint256 userLPBalance, uint256 userHBARValue, uint256 sharePercentage) 
     {
-        if (!tokenInfo.created) {
+        if (cslpToken == address(0)) {
             return (0, 0, 0);
         }
         
@@ -591,7 +535,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
      * @return userValue User's total value in HBAR (8 decimals)
      */
     function getUserValue(address user) external view returns (uint256 userValue) {
-        if (!tokenInfo.created || totalLPTokens == 0) {
+        if (cslpToken == address(0) || totalLPTokens == 0) {
             return 0;
         }
         
@@ -602,13 +546,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         userValue = (userLPBalance * totalValue) / totalLPTokens;
     }
     
-    /**
-     * @notice Get token information
-     * @return Token information struct
-     */
-    function getTokenInfo() external view returns (TokenInfo memory) {
-        return tokenInfo;
-    }
+    // Note: getTokenInfo() function removed - using shared cslpToken from factory
     
     /**
      * @notice Get all purchase IDs for a specific user (by wallet address)
@@ -636,13 +574,7 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
         return totalPurchases;
     }
     
-    /**
-     * @notice Check if token has been created
-     * @return created Whether the LP token has been created
-     */
-    function isTokenCreated() external view returns (bool created) {
-        return tokenInfo.created;
-    }
+    // Note: isTokenCreated() function removed - using shared cslpToken from factory
     
     /**
      * @notice Get human-readable error message for Hedera response code
@@ -732,7 +664,6 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
     function HBAR_withdrawal() external onlyOwner whenPaused {
         uint256 balance = address(this).balance;
         require(balance > 0, "No HBAR to withdraw");
-        require(fcdrToken != address(0), "FCDR token not created");
         
         // Step 1: Mint FCDR token to the pool (quantity = 1)
         _mintFCDRToPool(balance);
@@ -762,14 +693,9 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
      * @param hbarAmount The amount of HBAR being withdrawn
      */
     function _mintFCDRToPool(uint256 hbarAmount) internal {
-        require(fcdrToken != address(0), "FCDR token not created");
         
-        // Mint 1 FCDR token to the pool
-        (int responseCode, int64 newTotalSupply, int64[] memory serialNumbers) = HederaTokenService.mintToken(fcdrToken, 1, new bytes[](0));
-        
-        if (responseCode != HederaResponseCodes.SUCCESS) {
-            revert(string(abi.encodePacked("FCDR minting failed: ", getErrorMessage(int32(responseCode)))));
-        }
+        // Mint 1 FCDR token to the pool using factory
+        IClearSkyFactory(factory).mintFCDR(address(this));
         
         // Store FCDR metadata
         fcdrMetadata[totalFCDRs] = FCDRMetadata({
@@ -793,7 +719,6 @@ contract ClearSkyLiquidityPoolV3 is Ownable, ReentrancyGuard, Pausable, HederaTo
      * @dev Future functionality for burning FCDR tokens
      */
     function burnFCDR(uint256 fcdrId) external onlyOwner {
-        require(fcdrToken != address(0), "FCDR token not created");
         require(fcdrId < totalFCDRs, "Invalid FCDR ID");
         
         // Get the FCDR metadata

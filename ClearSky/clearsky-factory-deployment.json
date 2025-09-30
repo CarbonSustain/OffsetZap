@@ -1,0 +1,44 @@
+{
+  "factory": {
+    "contractName": "ClearSkyFactory",
+    "contractAddress": "0xF5dbABe178a4018FcC73700b644a85DD4F116e05",
+    "deployerAddress": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "contractOwner": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "network": "testnet",
+    "chainId": "296",
+    "rpcUrl": "https://testnet.hashio.io/api",
+    "deployedAt": "2025-09-30T06:55:07.483Z",
+    "deploymentBlock": 25584640,
+    "deploymentTxHash": "0xd8bb50f31553566992eb7b0aebc90662361b84af0709ad8e0b8062a14ef0f8a4",
+    "gasUsedDeployment": "See deployment transaction",
+    "version": "1.0.0"
+  },
+  "sharedTokens": {
+    "cslpToken": {
+      "address": "0x000000000000000000000000000000000069BB64",
+      "name": "ClearSky LP Token",
+      "symbol": "CSLP",
+      "decimals": 6,
+      "description": "Shared CSLP token used across all pools",
+      "createdBy": "Factory (HIP-1028)"
+    },
+    "fcdrToken": {
+      "address": "0x000000000000000000000000000000000069BB65",
+      "name": "Future CDR",
+      "symbol": "FCDR",
+      "decimals": 0,
+      "description": "Shared FCDR token for emergency withdrawals",
+      "createdBy": "Factory (HIP-1028)"
+    }
+  },
+  "features": [
+    "User-specific pools",
+    "Shared CSLP/FCDR tokens",
+    "Factory-based deployment",
+    "Pool isolation",
+    "Independent withdrawals",
+    "HIP-1028 Token Creation",
+    "Unified Token Economy",
+    "Scalable Architecture"
+  ]
+}
