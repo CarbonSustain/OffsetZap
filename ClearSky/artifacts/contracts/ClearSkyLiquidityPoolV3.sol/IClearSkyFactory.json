@@ -40,6 +40,16 @@
           "internalType": "address",
           "name": "poolAddress",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "fcdrOwner",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "hbarAmount",
+          "type": "uint256"
         }
       ],
       "name": "mintFCDR",

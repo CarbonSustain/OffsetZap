@@ -139,53 +139,95 @@ async function deployFactory() {
       throw cslpError;
     }
 
-    // Step 3: Create shared FCDR token
-    console.log("\n🪙 Step 3: Creating shared FCDR token...");
-    try {
-      console.log(`🎯 Simulating createFCDRToken() first...`);
+    // Step 3: Deploy FCDR1155 contract
+    console.log("\n🪙 Step 3: Deploying FCDR1155 contract...");
+    let fcdr1155Address = null;
 
-      try {
-        const simulateFcdrTx = await factory.createFCDRToken.staticCall({
-          gasLimit: 10000000,
-          value: ethers.parseEther("20"), // Include HBAR fee for HTS token creation
-        });
-        console.log(`✅ FCDR simulation successful`);
-      } catch (staticError) {
-        console.error(`❌ FCDR static call failed:`, staticError);
-        throw staticError;
+    try {
+      // Load FCDR1155 contract ABI and bytecode
+      const fcdr1155ContractPath =
+        "./artifacts/contracts/FCDR1155.sol/FCDR1155.json";
+
+      if (!fs.existsSync(fcdr1155ContractPath)) {
+        throw new Error(
+          "FCDR1155 contract artifacts not found. Run 'npx hardhat compile' first."
+        );
       }
 
-      console.log(`🎯 Now calling actual createFCDRToken()...`);
-      const createFcdrTx = await factory.createFCDRToken({
-        gasLimit: 10000000,
-        value: ethers.parseEther("20"), // Send 20 HBAR to cover HTS token creation fee
-      });
+      const fcdr1155ContractArtifact = JSON.parse(
+        fs.readFileSync(fcdr1155ContractPath, "utf8")
+      );
+      const { abi: fcdr1155ABI, bytecode: fcdr1155Bytecode } =
+        fcdr1155ContractArtifact;
 
-      console.log(`⏳ Waiting for FCDR token creation transaction...`);
-      console.log(`📄 FCDR creation TX hash: ${createFcdrTx.hash}`);
+      // Deploy FCDR1155 contract
+      const fcdr1155ContractFactory = new ethers.ContractFactory(
+        fcdr1155ABI,
+        fcdr1155Bytecode,
+        deployer
+      );
 
-      const createFcdrReceipt = await createFcdrTx.wait();
-      console.log(
-        `✅ FCDR token creation confirmed in block ${createFcdrReceipt.blockNumber}`
+      const fcdr1155 = await fcdr1155ContractFactory.deploy(
+        "https://api.clearsky.com/metadata/{id}.json"
       );
       console.log(
-        `⛽ Gas used for FCDR creation: ${createFcdrReceipt.gasUsed.toString()}`
+        `⏳ Waiting for FCDR1155 deployment transaction to be mined...`
       );
-    } catch (fcdrError) {
-      console.error(`❌ FCDR token creation failed:`, fcdrError);
-      throw fcdrError;
+      await fcdr1155.waitForDeployment();
+
+      fcdr1155Address = await fcdr1155.getAddress();
+      console.log(`✅ FCDR1155 deployed to: ${fcdr1155Address}`);
+      console.log(
+        `🔗 Transaction Hash: ${fcdr1155.deploymentTransaction().hash}`
+      );
+
+      // Wait a bit for the contract to be fully ready
+      console.log(`⏳ Waiting for FCDR1155 to be ready...`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Transfer ownership of FCDR1155 to the factory
+      console.log(`🔄 Transferring FCDR1155 ownership to factory...`);
+      const transferOwnershipTx = await fcdr1155.transferOwnership(
+        factoryAddress
+      );
+      console.log(`⏳ Waiting for ownership transfer transaction...`);
+      console.log(`📄 Transfer ownership TX hash: ${transferOwnershipTx.hash}`);
+
+      const transferReceipt = await transferOwnershipTx.wait();
+      console.log(
+        `✅ FCDR1155 ownership transferred to factory in block ${transferReceipt.blockNumber}`
+      );
+    } catch (fcdr1155Error) {
+      console.error(`❌ FCDR1155 deployment failed:`, fcdr1155Error);
+      throw fcdr1155Error;
     }
 
-    // Step 4: Get the shared token addresses from the factory
-    console.log("\n🪙 Step 4: Getting shared token addresses...");
+    // Step 4: Set FCDR1155 contract address in factory
+    console.log("\n🔗 Step 4: Setting FCDR1155 contract address in factory...");
+    try {
+      const setFcdr1155Tx = await factory.setFCDR1155Contract(fcdr1155Address);
+      console.log(`⏳ Waiting for setFCDR1155Contract transaction...`);
+      console.log(`📄 Set FCDR1155 TX hash: ${setFcdr1155Tx.hash}`);
+
+      const setFcdr1155Receipt = await setFcdr1155Tx.wait();
+      console.log(
+        `✅ FCDR1155 contract address set in block ${setFcdr1155Receipt.blockNumber}`
+      );
+    } catch (setError) {
+      console.error(`❌ Setting FCDR1155 contract address failed:`, setError);
+      throw setError;
+    }
+
+    // Step 5: Get the shared token addresses from the factory
+    console.log("\n🪙 Step 5: Getting shared token addresses...");
     const cslpToken = await factory.cslpToken();
-    const fcdrToken = await factory.fcdrToken();
+    const fcdr1155Contract = await factory.fcdr1155Contract();
 
     console.log("✅ CSLP Token:", cslpToken);
-    console.log("✅ FCDR Token:", fcdrToken);
+    console.log("✅ FCDR1155 Contract:", fcdr1155Contract);
 
-    // Step 5: Save deployment info
-    console.log("\n💾 Step 5: Saving deployment info...");
+    // Step 6: Save deployment info
+    console.log("\n💾 Step 6: Saving deployment info...");
     const deploymentInfo = {
       // Factory Information
       factory: {
@@ -215,18 +257,18 @@ async function deployFactory() {
           description: "Shared CSLP token used across all pools",
           createdBy: "Factory (HIP-1028)",
         },
-        fcdrToken: {
-          address: fcdrToken,
-          name: "Future CDR",
-          symbol: "FCDR",
-          decimals: 0,
-          description: "Shared FCDR token for emergency withdrawals",
-          createdBy: "Factory (HIP-1028)",
-        },
+      },
+      fcdr1155Contract: {
+        address: fcdr1155Address,
+        name: "FCDR1155",
+        description: "ERC-1155 contract for FCDR tokens",
+        status: "Deployed",
+        metadataUri: "https://api.clearsky.com/metadata/{id}.json",
       },
       features: [
         "User-specific pools",
-        "Shared CSLP/FCDR tokens",
+        "Shared CSLP tokens",
+        "ERC-1155 FCDR tokens",
         "Factory-based deployment",
         "Pool isolation",
         "Independent withdrawals",
@@ -250,13 +292,15 @@ async function deployFactory() {
     );
     console.log(`💾 Deployment info saved to: ${outputPath}`);
 
-    // Step 6: Display summary
+    // Step 7: Display summary
     console.log("\n🎯 Factory Deployment Success!");
     console.log(`   ✅ Step 1: Factory contract deployed successfully`);
     console.log(`   ✅ Step 2: Shared CSLP token created successfully`);
-    console.log(`   ✅ Step 3: Shared FCDR token created successfully`);
+    console.log(`   ✅ Step 3: FCDR1155 contract deployed successfully`);
+    console.log(`   ✅ Step 4: FCDR1155 contract address set in factory`);
     console.log(`   ✅ Factory manages all token creation`);
-    console.log(`   ✅ All pools use shared tokens`);
+    console.log(`   ✅ All pools use shared CSLP tokens`);
+    console.log(`   ✅ All pools use FCDR1155 for FCDR tokens`);
     console.log(`   ✅ User-specific pool isolation ready`);
     console.log(`   ✅ Auto-initialization enabled for new pools`);
 
@@ -264,7 +308,7 @@ async function deployFactory() {
     console.log("=".repeat(50));
     console.log("🏭 Factory Address:", factoryAddress);
     console.log("🪙 CSLP Token:", cslpToken);
-    console.log("🪙 FCDR Token:", fcdrToken);
+    console.log("🪙 FCDR1155 Contract:", fcdr1155Address);
     console.log("=".repeat(50));
 
     console.log("\n📋 Next Steps:");
@@ -277,7 +321,7 @@ async function deployFactory() {
     return {
       factoryAddress,
       cslpToken,
-      fcdrToken,
+      fcdr1155Address,
       deploymentInfo,
     };
   } catch (error) {
@@ -293,7 +337,7 @@ if (importPath === scriptPath) {
       console.log(`\n🎉 ClearSky Factory deployment completed successfully!`);
       console.log(`🏭 Factory Address: ${result.factoryAddress}`);
       console.log(`🪙 CSLP Token: ${result.cslpToken}`);
-      console.log(`🪙 FCDR Token: ${result.fcdrToken}`);
+      console.log(`🪙 FCDR1155 Contract: ${result.fcdr1155Address}`);
       process.exit(0);
     })
     .catch((error) => {
