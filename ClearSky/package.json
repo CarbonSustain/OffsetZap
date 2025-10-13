@@ -21,7 +21,8 @@
   "dependencies": {
     "@hashgraph/sdk": "^2.69.0",
     "@openzeppelin/contracts": "^5.3.0",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^0.15.0",

@@ -10,13 +10,17 @@ import "./KeyHelper.sol";
 
 // Interface for factory contract
 interface IClearSkyFactory {
-    function mintCSLP(address user, uint256 amount) external;
+    function mintCSLP(
+        address poolAddress,
+        address user,
+        uint256 amount
+    ) external;
     function mintFCDR(
         address poolAddress,
         address fcdrOwner,
         uint256 hbarAmount
     ) external;
-    function burnCSLP(uint256 amount) external;
+    function burnCSLP(address poolAddress, uint256 amount) external;
 }
 
 /**
@@ -41,7 +45,9 @@ contract ClearSkyLiquidityPoolV3 is
     address public immutable cslpToken;
     address public immutable fcdr1155Contract; // FCDR1155 contract address
 
-    // Note: Using shared cslpToken from factory instead of individual lpToken
+    // Certificate information removed - can be traced through token
+
+    // Note: Using individual cslpToken per pool instead of shared token
 
     // Pool state
     uint256 public totalHBAR;
@@ -65,6 +71,7 @@ contract ClearSkyLiquidityPoolV3 is
         uint256 cslpTokensMinted; // Actual CSLP tokens minted in this purchase
         address purchaser; // Wallet address of the buyer
         address lpAddress; // Liquidity pool contract address
+        address cslpTokenAddress; // CSLP token address used for this purchase
     }
 
     // Storage for purchase metadata
@@ -194,10 +201,10 @@ contract ClearSkyLiquidityPoolV3 is
     // Note: Token errors removed - using shared tokens from factory
 
     /**
-     * @notice Constructor - Factory pattern setup with shared tokens
+     * @notice Constructor - Factory pattern setup with individual tokens
      * @param _factory Factory contract address
      * @param _poolUser User address this pool belongs to
-     * @param _cslpToken Shared CSLP token address
+     * @param _cslpToken CSLP token address (can be address(0) initially)
      * @param _fcdr1155Contract FCDR1155 contract address
      * @param _owner Global owner address who can administer this pool
      */
@@ -216,7 +223,6 @@ contract ClearSkyLiquidityPoolV3 is
             "Invalid FCDR1155 contract address"
         );
         require(_owner != address(0), "Invalid owner address");
-
         factory = _factory;
         poolUser = _poolUser;
         cslpToken = _cslpToken;
@@ -291,7 +297,11 @@ contract ClearSkyLiquidityPoolV3 is
         );
 
         // Call factory to mint CSLP tokens
-        IClearSkyFactory(factory).mintCSLP(msg.sender, lpTokenAmount);
+        IClearSkyFactory(factory).mintCSLP(
+            address(this),
+            msg.sender,
+            lpTokenAmount
+        );
 
         totalLPTokens = lpTokenAmount;
         emit HTSMintSuccess(
@@ -351,7 +361,11 @@ contract ClearSkyLiquidityPoolV3 is
                     msg.sender,
                     int64(uint64(desiredMint))
                 );
-                IClearSkyFactory(factory).mintCSLP(msg.sender, desiredMint);
+                IClearSkyFactory(factory).mintCSLP(
+                    address(this),
+                    msg.sender,
+                    desiredMint
+                );
                 hasReceivedCSLPFromThisPool[msg.sender] = true;
                 totalLPTokens = desiredMint; // initialize supply to minted amount
                 emit HTSMintSuccess(
@@ -372,7 +386,8 @@ contract ClearSkyLiquidityPoolV3 is
                 numUsed: calculateCSLPFromUSD(usdAmount, maturationAmount),
                 cslpTokensMinted: desiredMint,
                 purchaser: msg.sender,
-                lpAddress: address(this)
+                lpAddress: address(this),
+                cslpTokenAddress: cslpToken
             });
 
             // Store metadata and track purchase
@@ -409,7 +424,11 @@ contract ClearSkyLiquidityPoolV3 is
                 msg.sender,
                 int64(uint64(subsequentMint))
             );
-            IClearSkyFactory(factory).mintCSLP(msg.sender, subsequentMint);
+            IClearSkyFactory(factory).mintCSLP(
+                address(this),
+                msg.sender,
+                subsequentMint
+            );
             hasReceivedCSLPFromThisPool[msg.sender] = true;
             totalLPTokens += subsequentMint;
             emit HTSMintSuccess(
@@ -427,7 +446,8 @@ contract ClearSkyLiquidityPoolV3 is
             numUsed: calculatedMaturation, // The calculated maturation amount (for reference)
             cslpTokensMinted: subsequentMint, // Actual CSLP tokens minted in this purchase
             purchaser: msg.sender, // Wallet address of the buyer
-            lpAddress: address(this) // Liquidity pool contract address
+            lpAddress: address(this), // Liquidity pool contract address
+            cslpTokenAddress: cslpToken // CSLP token address used for this purchase
         });
 
         // 🎯 TRACK WHICH USER MADE WHICH PURCHASE
@@ -481,7 +501,11 @@ contract ClearSkyLiquidityPoolV3 is
         );
 
         // Call factory to mint CSLP tokens
-        IClearSkyFactory(factory).mintCSLP(msg.sender, cslpTokensToMint);
+        IClearSkyFactory(factory).mintCSLP(
+            address(this),
+            msg.sender,
+            cslpTokensToMint
+        );
 
         totalLPTokens += cslpTokensToMint;
         emit HTSMintSuccess(
@@ -532,7 +556,7 @@ contract ClearSkyLiquidityPoolV3 is
             new int64[](0)
         );
 
-        IClearSkyFactory(factory).burnCSLP(lpTokenAmount);
+        IClearSkyFactory(factory).burnCSLP(address(this), lpTokenAmount);
 
         emit HTSBurnSuccess(cslpToken, int64(uint64(lpTokenAmount)), 0); // newTotalSupply not available from factory
 

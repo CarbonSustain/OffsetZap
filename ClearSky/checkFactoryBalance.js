@@ -50,10 +50,9 @@ async function checkFactoryBalance() {
     console.log("📋 Deployment Info:");
     console.log(`   Factory: ${factoryAddress}`);
     console.log(
-      `   CSLP Token: ${deploymentInfo.sharedTokens.cslpToken.address}`
-    );
-    console.log(
-      `   FCDR Token: ${deploymentInfo.sharedTokens.fcdrToken.address}`
+      `   FCDR1155 Contract: ${
+        deploymentInfo.fcdr1155Contract?.address || "Not deployed"
+      }`
     );
 
     console.log(`🏭 Factory Address: ${factoryAddress}`);

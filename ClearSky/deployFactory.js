@@ -102,45 +102,8 @@ async function deployFactory() {
     console.log(`⏳ Waiting for factory to be ready...`);
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Step 2: Create shared CSLP token
-    console.log("\n🪙 Step 2: Creating shared CSLP token...");
-    try {
-      console.log(`🎯 Simulating createCSLPToken() first...`);
-
-      try {
-        const simulateTx = await factory.createCSLPToken.staticCall({
-          gasLimit: 10000000,
-          value: ethers.parseEther("20"), // Include HBAR fee for HTS token creation
-        });
-        console.log(`✅ CSLP simulation successful`);
-      } catch (staticError) {
-        console.error(`❌ CSLP static call failed:`, staticError);
-        throw staticError;
-      }
-
-      console.log(`🎯 Now calling actual createCSLPToken()...`);
-      const createCSLPTx = await factory.createCSLPToken({
-        gasLimit: 10000000,
-        value: ethers.parseEther("20"), // Send 20 HBAR to cover HTS token creation fee
-      });
-
-      console.log(`⏳ Waiting for CSLP token creation transaction...`);
-      console.log(`📄 CSLP creation TX hash: ${createCSLPTx.hash}`);
-
-      const createCSLPReceipt = await createCSLPTx.wait();
-      console.log(
-        `✅ CSLP token creation confirmed in block ${createCSLPReceipt.blockNumber}`
-      );
-      console.log(
-        `⛽ Gas used for CSLP creation: ${createCSLPReceipt.gasUsed.toString()}`
-      );
-    } catch (cslpError) {
-      console.error(`❌ CSLP token creation failed:`, cslpError);
-      throw cslpError;
-    }
-
-    // Step 3: Deploy FCDR1155 contract
-    console.log("\n🪙 Step 3: Deploying FCDR1155 contract...");
+    // Step 2: Deploy FCDR1155 contract
+    console.log("\n🪙 Step 2: Deploying FCDR1155 contract...");
     let fcdr1155Address = null;
 
     try {
@@ -202,8 +165,8 @@ async function deployFactory() {
       throw fcdr1155Error;
     }
 
-    // Step 4: Set FCDR1155 contract address in factory
-    console.log("\n🔗 Step 4: Setting FCDR1155 contract address in factory...");
+    // Step 3: Set FCDR1155 contract address in factory
+    console.log("\n🔗 Step 3: Setting FCDR1155 contract address in factory...");
     try {
       const setFcdr1155Tx = await factory.setFCDR1155Contract(fcdr1155Address);
       console.log(`⏳ Waiting for setFCDR1155Contract transaction...`);
@@ -218,16 +181,14 @@ async function deployFactory() {
       throw setError;
     }
 
-    // Step 5: Get the shared token addresses from the factory
-    console.log("\n🪙 Step 5: Getting shared token addresses...");
-    const cslpToken = await factory.cslpToken();
+    // Step 4: Get the FCDR1155 contract address from the factory
+    console.log("\n🪙 Step 4: Getting FCDR1155 contract address...");
     const fcdr1155Contract = await factory.fcdr1155Contract();
 
-    console.log("✅ CSLP Token:", cslpToken);
     console.log("✅ FCDR1155 Contract:", fcdr1155Contract);
 
-    // Step 6: Save deployment info
-    console.log("\n💾 Step 6: Saving deployment info...");
+    // Step 5: Save deployment info
+    console.log("\n💾 Step 5: Saving deployment info...");
     const deploymentInfo = {
       // Factory Information
       factory: {
@@ -248,16 +209,7 @@ async function deployFactory() {
         gasUsedDeployment: "See deployment transaction",
         version: "1.0.0",
       },
-      sharedTokens: {
-        cslpToken: {
-          address: cslpToken,
-          name: "ClearSky LP Token",
-          symbol: "CSLP",
-          decimals: 6,
-          description: "Shared CSLP token used across all pools",
-          createdBy: "Factory (HIP-1028)",
-        },
-      },
+      // Note: No shared tokens - individual CSLP tokens created per pool
       fcdr1155Contract: {
         address: fcdr1155Address,
         name: "FCDR1155",
@@ -267,13 +219,13 @@ async function deployFactory() {
       },
       features: [
         "User-specific pools",
-        "Shared CSLP tokens",
+        "Individual CSLP tokens per pool",
         "ERC-1155 FCDR tokens",
         "Factory-based deployment",
         "Pool isolation",
         "Independent withdrawals",
         "HIP-1028 Token Creation",
-        "Unified Token Economy",
+        "Certificate-based token naming",
         "Scalable Architecture",
       ],
     };
@@ -295,19 +247,17 @@ async function deployFactory() {
     // Step 7: Display summary
     console.log("\n🎯 Factory Deployment Success!");
     console.log(`   ✅ Step 1: Factory contract deployed successfully`);
-    console.log(`   ✅ Step 2: Shared CSLP token created successfully`);
-    console.log(`   ✅ Step 3: FCDR1155 contract deployed successfully`);
-    console.log(`   ✅ Step 4: FCDR1155 contract address set in factory`);
-    console.log(`   ✅ Factory manages all token creation`);
-    console.log(`   ✅ All pools use shared CSLP tokens`);
+    console.log(`   ✅ Step 2: FCDR1155 contract deployed successfully`);
+    console.log(`   ✅ Step 3: FCDR1155 contract address set in factory`);
+    console.log(`   ✅ Factory manages individual token creation`);
+    console.log(`   ✅ Individual CSLP tokens created per pool`);
     console.log(`   ✅ All pools use FCDR1155 for FCDR tokens`);
     console.log(`   ✅ User-specific pool isolation ready`);
-    console.log(`   ✅ Auto-initialization enabled for new pools`);
+    console.log(`   ✅ Certificate-based token naming ready`);
 
     console.log("\n🎉 Factory Deployment Complete!");
     console.log("=".repeat(50));
     console.log("🏭 Factory Address:", factoryAddress);
-    console.log("🪙 CSLP Token:", cslpToken);
     console.log("🪙 FCDR1155 Contract:", fcdr1155Address);
     console.log("=".repeat(50));
 
@@ -320,7 +270,6 @@ async function deployFactory() {
 
     return {
       factoryAddress,
-      cslpToken,
       fcdr1155Address,
       deploymentInfo,
     };
@@ -336,7 +285,6 @@ if (importPath === scriptPath) {
     .then((result) => {
       console.log(`\n🎉 ClearSky Factory deployment completed successfully!`);
       console.log(`🏭 Factory Address: ${result.factoryAddress}`);
-      console.log(`🪙 CSLP Token: ${result.cslpToken}`);
       console.log(`🪙 FCDR1155 Contract: ${result.fcdr1155Address}`);
       process.exit(0);
     })
