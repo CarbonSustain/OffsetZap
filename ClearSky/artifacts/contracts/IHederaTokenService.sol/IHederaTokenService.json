@@ -16,18 +16,13 @@
               "components": [
                 {
                   "internalType": "address",
-                  "name": "accountID",
+                  "name": "account",
                   "type": "address"
                 },
                 {
                   "internalType": "int64",
                   "name": "amount",
                   "type": "int64"
-                },
-                {
-                  "internalType": "bool",
-                  "name": "isApproval",
-                  "type": "bool"
                 }
               ],
               "internalType": "struct IHederaTokenService.AccountAmount[]",
@@ -1008,18 +1003,13 @@
               "components": [
                 {
                   "internalType": "address",
-                  "name": "accountID",
+                  "name": "account",
                   "type": "address"
                 },
                 {
                   "internalType": "int64",
                   "name": "amount",
                   "type": "int64"
-                },
-                {
-                  "internalType": "bool",
-                  "name": "isApproval",
-                  "type": "bool"
                 }
               ],
               "internalType": "struct IHederaTokenService.AccountAmount[]",
@@ -1042,18 +1032,13 @@
               "components": [
                 {
                   "internalType": "address",
-                  "name": "accountID",
+                  "name": "account",
                   "type": "address"
                 },
                 {
                   "internalType": "int64",
                   "name": "amount",
                   "type": "int64"
-                },
-                {
-                  "internalType": "bool",
-                  "name": "isApproval",
-                  "type": "bool"
                 }
               ],
               "internalType": "struct IHederaTokenService.AccountAmount[]",

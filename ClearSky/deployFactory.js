@@ -181,14 +181,121 @@ async function deployFactory() {
       throw setError;
     }
 
-    // Step 4: Get the FCDR1155 contract address from the factory
-    console.log("\n🪙 Step 4: Getting FCDR1155 contract address...");
+    // Step 4: Deploy SeriesVault and set on Factory
+    console.log("\n🏗️ Step 4: Deploying SeriesVault...");
+    const seriesVaultArtifactPath =
+      "./artifacts/contracts/SeriesVault.sol/SeriesVault.json";
+
+    if (!fs.existsSync(seriesVaultArtifactPath)) {
+      throw new Error(
+        "SeriesVault artifacts not found. Run 'npx hardhat compile' first."
+      );
+    }
+
+    const seriesVaultArtifact = JSON.parse(
+      fs.readFileSync(seriesVaultArtifactPath, "utf8")
+    );
+    const { abi: seriesVaultABI, bytecode: seriesVaultBytecode } =
+      seriesVaultArtifact;
+
+    const seriesVaultFactory = new ethers.ContractFactory(
+      seriesVaultABI,
+      seriesVaultBytecode,
+      deployer
+    );
+
+    // Deploy the vault (lightweight constructor, no HTS create here)
+    const seriesVault = await seriesVaultFactory.deploy(
+      "ClearSky Series",
+      "CSER",
+      ethers.ZeroAddress
+    );
+    console.log(`⏳ Waiting for SeriesVault deployment to be mined...`);
+    await seriesVault.waitForDeployment();
+    const seriesVaultAddress = await seriesVault.getAddress();
+    console.log(`✅ SeriesVault deployed to: ${seriesVaultAddress}`);
+    console.log(
+      `🔗 Transaction Hash: ${seriesVault.deploymentTransaction().hash}`
+    );
+
+    // Initialize Series token BEFORE transferring ownership (deployer is still owner)
+    console.log("\n🧩 Initializing Series token on SeriesVault...");
+    const seriesInitTx = await seriesVault.initCreateSeriesToken(
+      "ClearSky Series NFT",
+      "ClearSky Series",
+      "SeriesVault: Series NFT",
+      0, // maxSupply = 0 means infinite for NFTs
+      {
+        value: ethers.parseEther("10"), // 10 HBAR for token creation
+        gasLimit: BigInt(12000000),
+      }
+    );
+    console.log(`📄 initCreateSeriesToken TX hash: ${seriesInitTx.hash}`);
+    const initReceipt = await seriesInitTx.wait();
+    console.log(
+      "✅ Series token initialized in block",
+      initReceipt.blockNumber
+    );
+
+    // Read the created token address
+    const createdTokenAddr = await seriesVault.seriesToken();
+    console.log("🪙 Series token address:", createdTokenAddr);
+
+    // Step 5: Deploy Orderbook contract
+    console.log("\n📋 Step 5: Deploying Orderbook contract...");
+    const orderbookArtifactPath =
+      "./artifacts/contracts/Orderbook.sol/OrderBook.json";
+
+    if (!fs.existsSync(orderbookArtifactPath)) {
+      throw new Error(
+        "Orderbook artifacts not found. Run 'npx hardhat compile' first."
+      );
+    }
+
+    const orderbookArtifact = JSON.parse(
+      fs.readFileSync(orderbookArtifactPath, "utf8")
+    );
+    const { abi: orderbookABI, bytecode: orderbookBytecode } =
+      orderbookArtifact;
+
+    const orderbookFactory = new ethers.ContractFactory(
+      orderbookABI,
+      orderbookBytecode,
+      deployer
+    );
+
+    // Get Series Token address from SeriesVault
+    const seriesTokenAddress = await seriesVault.seriesToken();
+    console.log("🪙 Series Token Address:", seriesTokenAddress);
+
+    // Deploy Orderbook with required parameters
+    // feeCollector: deployer address (can be changed later)
+    // feeBps: 250 = 2.5% (250 basis points)
+    const feeCollector = deployer.address;
+    const feeBps = 250; // 2.5%
+
+    const orderbook = await orderbookFactory.deploy(
+      seriesTokenAddress, // _seriesToken
+      seriesVaultAddress, // _seriesVault
+      feeCollector, // _feeCollector
+      feeBps // _feeBps
+    );
+    console.log(`⏳ Waiting for Orderbook deployment to be mined...`);
+    await orderbook.waitForDeployment();
+    const orderbookAddress = await orderbook.getAddress();
+    console.log(`✅ Orderbook deployed to: ${orderbookAddress}`);
+    console.log(
+      `🔗 Transaction Hash: ${orderbook.deploymentTransaction().hash}`
+    );
+
+    // Step 6: Get the FCDR1155 contract address from the factory
+    console.log("\n🪙 Step 6: Getting FCDR1155 contract address...");
     const fcdr1155Contract = await factory.fcdr1155Contract();
 
     console.log("✅ FCDR1155 Contract:", fcdr1155Contract);
 
-    // Step 5: Save deployment info
-    console.log("\n💾 Step 5: Saving deployment info...");
+    // Step 7: Save deployment info
+    console.log("\n💾 Step 7: Saving deployment info...");
     const deploymentInfo = {
       // Factory Information
       factory: {
@@ -217,6 +324,20 @@ async function deployFactory() {
         status: "Deployed",
         metadataUri: "https://api.clearsky.com/metadata/{id}.json",
       },
+      seriesVault: {
+        address: seriesVaultAddress,
+        name: "SeriesVault",
+        description: "Standalone Series vault (owned by deployer)",
+        status: "Deployed",
+      },
+      orderbook: {
+        address: orderbookAddress,
+        name: "OrderBook",
+        description: "Orderbook contract for Series NFT trading",
+        status: "Deployed",
+        feeCollector: feeCollector,
+        feeBps: feeBps,
+      },
       features: [
         "User-specific pools",
         "Individual CSLP tokens per pool",
@@ -244,33 +365,27 @@ async function deployFactory() {
     );
     console.log(`💾 Deployment info saved to: ${outputPath}`);
 
-    // Step 7: Display summary
+    // Step 8: Display summary
     console.log("\n🎯 Factory Deployment Success!");
     console.log(`   ✅ Step 1: Factory contract deployed successfully`);
     console.log(`   ✅ Step 2: FCDR1155 contract deployed successfully`);
     console.log(`   ✅ Step 3: FCDR1155 contract address set in factory`);
-    console.log(`   ✅ Factory manages individual token creation`);
-    console.log(`   ✅ Individual CSLP tokens created per pool`);
-    console.log(`   ✅ All pools use FCDR1155 for FCDR tokens`);
-    console.log(`   ✅ User-specific pool isolation ready`);
-    console.log(`   ✅ Certificate-based token naming ready`);
+    console.log(`   ✅ Step 4: SeriesVault deployed and initialized`);
+    console.log(`   ✅ Step 5: Orderbook contract deployed successfully`);
 
     console.log("\n🎉 Factory Deployment Complete!");
     console.log("=".repeat(50));
     console.log("🏭 Factory Address:", factoryAddress);
     console.log("🪙 FCDR1155 Contract:", fcdr1155Address);
+    console.log("🏗️ SeriesVault:", seriesVaultAddress);
+    console.log("📋 Orderbook:", orderbookAddress);
     console.log("=".repeat(50));
-
-    console.log("\n📋 Next Steps:");
-    console.log("1. Test factory system: node testFactory.js");
-    console.log("2. Update frontend to use factory address");
-    console.log("3. Test pool creation from frontend (buy credits)");
-    console.log("4. Test auto-initialization on first liquidity");
-    console.log("5. Test emergency withdrawals from user pools");
 
     return {
       factoryAddress,
       fcdr1155Address,
+      seriesVaultAddress,
+      orderbookAddress,
       deploymentInfo,
     };
   } catch (error) {
@@ -283,9 +398,13 @@ async function deployFactory() {
 if (importPath === scriptPath) {
   deployFactory()
     .then((result) => {
-      console.log(`\n🎉 ClearSky Factory deployment completed successfully!`);
+      console.log(
+        `\n🎉 ClearSky Factory deployment completed successfully! \n\nAddresses from json file:\n`
+      );
       console.log(`🏭 Factory Address: ${result.factoryAddress}`);
       console.log(`🪙 FCDR1155 Contract: ${result.fcdr1155Address}`);
+      console.log(`🏗️ SeriesVault: ${result.seriesVaultAddress}`);
+      console.log(`📋 Orderbook: ${result.orderbookAddress}`);
       process.exit(0);
     })
     .catch((error) => {

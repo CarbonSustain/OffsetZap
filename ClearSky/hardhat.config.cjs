@@ -9,13 +9,26 @@ module.exports = {
         enabled: true,
         runs: 200,
       },
-      viaIR: true,
+      viaIR: false,
+    },
+    overrides: {
+      "contracts/SeriesVault.sol": {
+        version: "0.8.19",
+        settings: {
+          optimizer: {
+            enabled: false,
+            runs: 0,
+          },
+          viaIR: false,
+        },
+      },
     },
   },
   networks: {
     // Hedera Testnet
     hederaTestnet: {
-      url: process.env.HEDERA_TESTNET_RPC_URL || "https://testnet.hashio.io/api",
+      url:
+        process.env.HEDERA_TESTNET_RPC_URL || "https://testnet.hashio.io/api",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 296,
       gas: 8000000,
@@ -23,7 +36,8 @@ module.exports = {
     },
     // Hedera Mainnet
     hederaMainnet: {
-      url: process.env.HEDERA_MAINNET_RPC_URL || "https://mainnet.hashio.io/api",
+      url:
+        process.env.HEDERA_MAINNET_RPC_URL || "https://mainnet.hashio.io/api",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 295,
       gas: 8000000,
@@ -49,4 +63,4 @@ module.exports = {
     // Hedera doesn't have Etherscan, but we keep this for compatibility
     apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
-}; 
+};

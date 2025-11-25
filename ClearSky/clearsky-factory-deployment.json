@@ -1,24 +1,38 @@
 {
   "factory": {
     "contractName": "ClearSkyFactory",
-    "contractAddress": "0x9e8a700C489dE9b9D97af2F568FcEDbEaCed9864",
+    "contractAddress": "0x6ec98417CC794969636189C94692a1faD5A4F4d6",
     "deployerAddress": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
     "contractOwner": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
     "network": "testnet",
     "chainId": "296",
     "rpcUrl": "https://testnet.hashio.io/api",
-    "deployedAt": "2025-10-13T17:12:39.310Z",
-    "deploymentBlock": 26164764,
-    "deploymentTxHash": "0xa2e787d2c8f4562b9c748fee8a2b8756bdd912b5c6e465ac8112a303517290f9",
+    "deployedAt": "2025-11-25T04:59:27.496Z",
+    "deploymentBlock": 28000119,
+    "deploymentTxHash": "0x2b5c6d37244663858d9ce16de388612728632811488f9f5dc80c2abdeda19a0b",
     "gasUsedDeployment": "See deployment transaction",
     "version": "1.0.0"
   },
   "fcdr1155Contract": {
-    "address": "0x9BfdE581bc6F9E244C25fE4FB3972aAc1ba3e719",
+    "address": "0x0309F64350a281A02C75DD5f419dED4D03c97a51",
     "name": "FCDR1155",
     "description": "ERC-1155 contract for FCDR tokens",
     "status": "Deployed",
     "metadataUri": "https://api.clearsky.com/metadata/{id}.json"
+  },
+  "seriesVault": {
+    "address": "0xFc7c69BeE1454F18c63CF4E40968C1360511eA64",
+    "name": "SeriesVault",
+    "description": "Standalone Series vault (owned by deployer)",
+    "status": "Deployed"
+  },
+  "orderbook": {
+    "address": "0xd1F2eE0df88FA69C1A225255d5a84FDcCb7f9a17",
+    "name": "OrderBook",
+    "description": "Orderbook contract for Series NFT trading",
+    "status": "Deployed",
+    "feeCollector": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "feeBps": 250
   },
   "features": [
     "User-specific pools",

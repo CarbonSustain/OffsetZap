@@ -41,18 +41,16 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         address indexed previousOwner,
         address indexed newOwner
     );
-    // Debug: factory HBAR balance snapshot
-    event FactoryBalance(uint256 balanceWei);
 
     // Modifiers
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only factory owner");
+        require(msg.sender == owner, "OWN");
         _;
     }
 
     // Allow calls from factory owner OR a pool created by this factory
     modifier onlyOwnerOrPool() {
-        require(msg.sender == owner || isPool[msg.sender], "Not authorized");
+        require(msg.sender == owner || isPool[msg.sender], "AUTH");
         _;
     }
 
@@ -67,6 +65,10 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         emit OwnershipTransferred(address(0), msg.sender);
     }
 
+    // No association helper needed (vault has auto-associations)
+
+    // Series token creation removed; handled externally post-deploy
+
     /**
      * @notice Create a new liquidity pool for a user with pre-created CSLP token
      * @param user The user address that will own this pool
@@ -77,9 +79,9 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         address user,
         address cslpToken
     ) external returns (address) {
-        require(user != address(0), "Invalid user address");
-        require(userPools[user] == address(0), "Pool already exists for user");
-        require(cslpToken != address(0), "CSLP token address required");
+        require(user != address(0), "BAD_USER");
+        require(userPools[user] == address(0), "POOL_EXISTS");
+        require(cslpToken != address(0), "NO_CSLP");
 
         // Deploy new pool contract with pre-created CSLP token
         ClearSkyLiquidityPoolV3 newPool = new ClearSkyLiquidityPoolV3(
@@ -99,8 +101,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         if (fcdr1155Contract != address(0)) {
             FCDR1155(fcdr1155Contract).registerLP(poolAddress);
         }
-
-        // Note: Token association will be handled by the frontend after pool creation
 
         // Store the mapping
         userPools[user] = poolAddress;
@@ -122,9 +122,8 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         address user,
         address cslpToken
     ) external returns (address) {
-        require(user != address(0), "Invalid user address");
-        require(cslpToken != address(0), "CSLP token address required");
-        // Note: No check for existing pools - allows multiple pools per user
+        require(user != address(0), "BAD_USER");
+        require(cslpToken != address(0), "NO_CSLP");
 
         // Deploy new pool contract with pre-created CSLP token
         ClearSkyLiquidityPoolV3 newPool = new ClearSkyLiquidityPoolV3(
@@ -145,8 +144,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
             FCDR1155(fcdr1155Contract).registerLP(poolAddress);
         }
 
-        // Note: Token association will be handled by the frontend after pool creation
-
         // Store the mapping (overwrites previous pool for user - this is intentional for maturation)
         userPools[user] = poolAddress;
         allPools.push(poolAddress);
@@ -155,19 +152,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         emit PoolCreated(user, poolAddress, cslpToken, allPools.length - 1);
 
         return poolAddress;
-    }
-
-    /**
-     * @notice Create a CSLP token (public function for frontend to call)
-     * @param tokenName The name of the CSLP token
-     * @param tokenSymbol The symbol of the CSLP token
-     * @return tokenAddress The address of the created CSLP token
-     */
-    function createCSLPToken(
-        string memory tokenName,
-        string memory tokenSymbol
-    ) external returns (address) {
-        return _createCSLPToken(tokenName, tokenSymbol);
     }
 
     /**
@@ -185,7 +169,7 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         uint256 amount
     ) external onlyOwnerOrPool {
         address cslpToken = poolCSLPTokens[poolAddress];
-        require(cslpToken != address(0), "CSLP token not found for pool");
+        require(cslpToken != address(0), "NO_CSLP");
 
         int64 mintAmount = int64(uint64(amount));
 
@@ -195,7 +179,7 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
             mintAmount,
             new bytes[](0)
         );
-        require(responseCode == HederaResponseCodes.SUCCESS, "Mint failed");
+        require(responseCode == HederaResponseCodes.SUCCESS, "MINT_FAIL");
 
         // ✅ 2. Transfer: from treasury (owner) to user
         if (owner != user) {
@@ -212,17 +196,97 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         }
     }
 
+    /**
+     * @notice Complete maturation deposit process
+     * 1. Mint CSLP tokens to treasury (owner account)
+     * 2. Transfer CSLP tokens from treasury to pool
+     * 3. Update pool's HBAR balance and total value
+     */
+    function completeMaturationDeposit(
+        address newPoolAddress,
+        address prevPoolAddress,
+        uint256 hbarAmount
+    ) external onlyOwner {
+        require(newPoolAddress != address(0), "BAD_NEW");
+        require(prevPoolAddress != address(0), "BAD_PREV");
+        require(hbarAmount > 0, "HBAR_ZERO");
+
+        address cslpToken = poolCSLPTokens[newPoolAddress];
+        require(cslpToken != address(0), "NO_CSLP");
+
+        // Step 1: Mint 1 CSLP token to treasury (owner account) and transfer to pool
+        uint256 mintAmount = 1_000_000; // 1 CSLP with 6 decimals
+        int64 mintAmountInt64 = int64(uint64(mintAmount));
+
+        // Mint to treasury (owner)
+        (int responseCode, , ) = HederaTokenService.mintToken(
+            cslpToken,
+            mintAmountInt64,
+            new bytes[](0)
+        );
+        require(responseCode == HederaResponseCodes.SUCCESS, "MINT_FAIL");
+
+        // Transfer from treasury to pool
+        int transferResponseCode = HederaTokenService.transferToken(
+            cslpToken,
+            owner, // FROM: owner (treasury)
+            newPoolAddress, // TO: new pool
+            mintAmountInt64
+        );
+        require(
+            transferResponseCode == HederaResponseCodes.SUCCESS,
+            "Transfer failed"
+        );
+
+        // Step 2: Update pool's HBAR balance and total value
+        ClearSkyLiquidityPoolV3(payable(newPoolAddress)).updateMaturationHBAR(
+            hbarAmount
+        );
+        // Update 2-decimal maturation percentage to (x/110) * 100
+        // Stored as scaled by 100: valueScaled = (x * 10000) / 110 using integer math
+        // Keep 'x' as a variable so it can be changed later by caller requirements
+        uint256 maturationNumerator = 1; // default x = 1 (produces ~0.90%)
+        uint256 maturationPctScaled = (maturationNumerator * uint256(10000)) /
+            uint256(110);
+        ClearSkyLiquidityPoolV3(payable(newPoolAddress)).setMaturationPct2dp(
+            maturationPctScaled
+        );
+        // Update totalLPTokens in the new pool to the mint amount
+        ClearSkyLiquidityPoolV3(payable(newPoolAddress)).updateTotalLPTokens(
+            mintAmount
+        );
+        // Mark the PREVIOUS pool as matured (the one with CSLP1)
+        ClearSkyLiquidityPoolV3(payable(prevPoolAddress)).setMatured(true);
+        // Set FCDR status to 2 (burned) for the previous pool
+        ClearSkyLiquidityPoolV3(payable(prevPoolAddress)).setFCDRStatus(
+            prevPoolAddress,
+            2
+        );
+
+        emit MaturationDepositCompleted(
+            newPoolAddress,
+            cslpToken,
+            hbarAmount,
+            mintAmount
+        );
+    }
+
     function mintFCDR(
         address poolAddress,
         address fcdrOwner,
         uint256 hbarAmount
     ) external onlyOwnerOrPool {
-        require(fcdr1155Contract != address(0), "FCDR1155 contract not set");
+        require(fcdr1155Contract != address(0), "NO_FCDR");
         FCDR1155(fcdr1155Contract).mintFCDRWithMetadata(
             fcdrOwner,
             poolAddress,
             hbarAmount,
             ""
+        );
+        // Set FCDR status to 1 (minted) for the pool
+        ClearSkyLiquidityPoolV3(payable(poolAddress)).setFCDRStatus(
+            poolAddress,
+            1
         );
     }
 
@@ -231,7 +295,7 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         uint256 amount
     ) external onlyOwnerOrPool {
         address cslpToken = poolCSLPTokens[poolAddress];
-        require(cslpToken != address(0), "CSLP token not found for pool");
+        require(cslpToken != address(0), "NO_CSLP");
 
         int64 burnAmount = int64(uint64(amount));
         int64[] memory serialNumbers = new int64[](0);
@@ -248,8 +312,13 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         address poolAddress,
         uint256 amount
     ) external onlyOwnerOrPool {
-        require(fcdr1155Contract != address(0), "FCDR1155 contract not set");
+        require(fcdr1155Contract != address(0), "NO_FCDR");
         FCDR1155(fcdr1155Contract).burnFrom(from, poolAddress, amount);
+        // Set FCDR status to 2 (burned) for the pool
+        ClearSkyLiquidityPoolV3(payable(poolAddress)).setFCDRStatus(
+            poolAddress,
+            2
+        );
     }
 
     function getAllPools() external view returns (address[] memory) {
@@ -261,14 +330,38 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
     }
 
     /**
-     * @notice Get CSLP token address for a pool
-     * @param poolAddress The pool address
-     * @return The CSLP token address for the pool
+     * @notice Get FCDR status for a pool
+     * @param poolAddress The pool address to check
+     * @return status 0=no FCDR, 1=FCDR minted, 2=FCDR burned
      */
-    function getPoolCSLPToken(
+    function getPoolFCDRStatus(
         address poolAddress
-    ) external view returns (address) {
-        return poolCSLPTokens[poolAddress];
+    ) external view returns (uint256) {
+        return
+            ClearSkyLiquidityPoolV3(payable(poolAddress)).getFCDRStatus(
+                poolAddress
+            );
+    }
+
+    /**
+     * @notice Transfer CSLP tokens from pool to user
+     * @param poolAddress The pool address
+     * @param user The user address to transfer tokens to
+     * @param amount The amount of CSLP tokens to transfer
+     */
+    function transferCSLPToUser(
+        address poolAddress,
+        address user,
+        uint256 amount
+    ) external {
+        require(poolAddress != address(0), "BAD_POOL");
+        require(user != address(0), "BAD_USER");
+        require(amount > 0, "AMT_ZERO");
+
+        ClearSkyLiquidityPoolV3(payable(poolAddress)).transferCSLPToUser(
+            user,
+            amount
+        );
     }
 
     /**
@@ -283,90 +376,12 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         fcdr1155Contract = _fcdr1155Contract;
     }
 
-    /**
-     * @notice Create individual CSLP token using Hedera HTS
-     * @dev This token will be used for a specific pool
-     * @param tokenName The name of the token
-     * @param tokenSymbol The symbol of the token
-     * @return tokenAddress The address of the created CSLP token
-     */
-    // Event for debugging HTS creation
-    event HTSCreateResult(
-        int32 code,
-        address token,
-        string tokenName,
-        string tokenSymbol
+    event MaturationDepositCompleted(
+        address indexed poolAddress,
+        address indexed cslpToken,
+        uint256 hbarAmount,
+        uint256 cslpTokensMinted
     );
-
-    // Event for successful CSLP token creation
-    event CSLPTokenCreated(
-        address indexed tokenAddress,
-        string tokenName,
-        string tokenSymbol,
-        address indexed creator
-    );
-
-    function _createCSLPToken(
-        string memory tokenName,
-        string memory tokenSymbol
-    ) internal returns (address) {
-        // Log factory contract balance before HTS create
-        emit FactoryBalance(address(this).balance);
-
-        // Create HederaToken struct with all required fields
-        IHederaTokenService.HederaToken memory token;
-        token.name = tokenName;
-        token.symbol = tokenSymbol;
-        token.treasury = address(this); // Factory is treasury
-        token.tokenKeys = new IHederaTokenService.TokenKey[](1);
-
-        // Create supply key exactly like the working example
-        IHederaTokenService.TokenKey memory tokenKey = super.getSingleKey(
-            KeyType.SUPPLY,
-            KeyValueType.CONTRACT_ID,
-            address(this)
-        );
-        token.tokenKeys[0] = tokenKey;
-
-        // Set expiry and auto-renew (REQUIRED for Hedera tokens)
-        token.expiry = IHederaTokenService.Expiry({
-            second: 0, // 0 means no expiry
-            autoRenewAccount: address(this),
-            autoRenewPeriod: 7890000 // ~3 months in seconds
-        });
-
-        // Set additional required fields
-        token.memo = ""; // Empty memo
-
-        // Create the fungible token with 6 decimals and 0 initial supply
-        (int responseCode, address tokenAddress) = HederaTokenService
-            .createFungibleToken(token, 0, 6);
-
-        // Emit result for debugging
-        emit HTSCreateResult(
-            int32(responseCode),
-            tokenAddress,
-            tokenName,
-            tokenSymbol
-        );
-
-        // Better error handling with specific error codes
-        if (responseCode != HederaResponseCodes.SUCCESS) {
-            revert(
-                string(
-                    abi.encodePacked(
-                        "HTS create failed code=",
-                        _i32(int32(responseCode))
-                    )
-                )
-            );
-        }
-
-        // Emit successful token creation event
-        emit CSLPTokenCreated(tokenAddress, tokenName, tokenSymbol, msg.sender);
-
-        return tokenAddress;
-    }
 
     // Helper function to convert int32 to string for error messages
     function _i32(int32 v) internal pure returns (string memory) {

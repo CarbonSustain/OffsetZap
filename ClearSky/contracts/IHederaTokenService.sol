@@ -12,18 +12,13 @@ interface IHederaTokenService {
     /// transaction fee is still charged. This transaction must be signed by the keys for all the sending
     /// accounts, and for any receiving accounts that have receiverSigRequired == true. The signatures
     /// are in the same order as the accounts, skipping those accounts that don't need a signature.
-    /// @custom:version 0.3.0 previous version did not include isApproval
     struct AccountAmount {
         // The Account ID, as a solidity address, that sends/receives cryptocurrency or tokens
-        address accountID;
+        address account;
 
         // The amount of  the lowest denomination of the given token that
         // the account sends(negative) or receives(positive)
         int64 amount;
-
-        // If true then the transfer is expected to be an approved allowance and the
-        // accountID is expected to be the owner. The default is false (omitted).
-        bool isApproval;
     }
 
     /// A sender account, a receiver account, and the serial number of an NFT of a Token with

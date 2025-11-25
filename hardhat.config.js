@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+require("hardhat-contract-sizer");
 
 module.exports = {
   solidity: {
@@ -80,5 +81,11 @@ module.exports = {
       accounts: [`${process.env.PRIVATE_KEY_HEDERA}`],
       chainId: 297,
     },
+  },
+  contractSizer: {
+    alphaSort: true,          // sort alphabetically
+    disambiguatePaths: false, // cleaner names
+    runOnCompile: true,       // automatically show after each compile
+    strict: true,             // (optional) fail compile if >24kb
   },
 };
