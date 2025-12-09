@@ -1,0 +1,16 @@
+{
+  "testnet": {
+    "timestamp": "2025-12-05T17:03:13.943Z",
+    "deployer": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "network": "testnet",
+    "chainId": "296",
+    "rpcUrl": "https://testnet.hashio.io/api",
+    "deploymentBlock": 28453708,
+    "deploymentTxHash": "0x65e435a347605e689bd55beb5c907ea95b8ae1d06f066b1f39d465e80ba80165",
+    "transactionMemo": "HbarOffset contract deployment",
+    "hbarOffset": {
+      "address": "0xbF5Df477C0bb0aD61BA685E3955A8eCDC8CEa37e",
+      "owner": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA"
+    }
+  }
+}

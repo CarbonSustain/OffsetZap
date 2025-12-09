@@ -114,7 +114,7 @@ async function main(tokenName, tokenSymbol) {
       Long.MAX_VALUE // unlimited allowance
     )
     .setTransactionMemo("Approve Factory to transfer CSLP tokens")
-    .setMaxTransactionFee(new Hbar(5))
+    .setMaxTransactionFee(new Hbar(50))
     .freezeWith(client)
     .sign(operatorKey);
 
