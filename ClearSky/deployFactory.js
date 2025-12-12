@@ -288,13 +288,56 @@ async function deployFactory() {
       `🔗 Transaction Hash: ${orderbook.deploymentTransaction().hash}`
     );
 
-    // Step 6: Get the FCDR1155 contract address from the factory
-    console.log("\n🪙 Step 6: Getting FCDR1155 contract address...");
+    // Step 6: Link Factory and Orderbook contracts
+    console.log("\n🔗 Step 6: Linking Factory and Orderbook contracts...");
+
+    // Set Orderbook address in Factory
+    console.log("   Setting Orderbook address in Factory...");
+    try {
+      const setOrderbookTx = await factory.setOrderbookAddress(
+        orderbookAddress
+      );
+      console.log(`   ⏳ Waiting for setOrderbookAddress transaction...`);
+      console.log(`   📄 Set Orderbook TX hash: ${setOrderbookTx.hash}`);
+
+      const setOrderbookReceipt = await setOrderbookTx.wait();
+      console.log(
+        `   ✅ Orderbook address set in Factory in block ${setOrderbookReceipt.blockNumber}`
+      );
+    } catch (setOrderbookError) {
+      console.error(
+        `   ❌ Setting Orderbook address in Factory failed:`,
+        setOrderbookError
+      );
+      throw setOrderbookError;
+    }
+
+    // Set Factory address in Orderbook
+    console.log("   Setting Factory address in Orderbook...");
+    try {
+      const setFactoryTx = await orderbook.setFactory(factoryAddress);
+      console.log(`   ⏳ Waiting for setFactory transaction...`);
+      console.log(`   📄 Set Factory TX hash: ${setFactoryTx.hash}`);
+
+      const setFactoryReceipt = await setFactoryTx.wait();
+      console.log(
+        `   ✅ Factory address set in Orderbook in block ${setFactoryReceipt.blockNumber}`
+      );
+    } catch (setFactoryError) {
+      console.error(
+        `   ❌ Setting Factory address in Orderbook failed:`,
+        setFactoryError
+      );
+      throw setFactoryError;
+    }
+
+    // Step 7: Get the FCDR1155 contract address from the factory
+    console.log("\n🪙 Step 7: Getting FCDR1155 contract address...");
     const fcdr1155Contract = await factory.fcdr1155Contract();
 
     console.log("✅ FCDR1155 Contract:", fcdr1155Contract);
 
-    // Step 7: Save deployment info
+    // Step 8: Save deployment info
     console.log("\n💾 Step 7: Saving deployment info...");
     const deploymentInfo = {
       // Factory Information
@@ -365,13 +408,14 @@ async function deployFactory() {
     );
     console.log(`💾 Deployment info saved to: ${outputPath}`);
 
-    // Step 8: Display summary
+    // Step 9: Display summary
     console.log("\n🎯 Factory Deployment Success!");
     console.log(`   ✅ Step 1: Factory contract deployed successfully`);
     console.log(`   ✅ Step 2: FCDR1155 contract deployed successfully`);
     console.log(`   ✅ Step 3: FCDR1155 contract address set in factory`);
     console.log(`   ✅ Step 4: SeriesVault deployed and initialized`);
     console.log(`   ✅ Step 5: Orderbook contract deployed successfully`);
+    console.log(`   ✅ Step 6: Factory and Orderbook contracts linked`);
 
     console.log("\n🎉 Factory Deployment Complete!");
     console.log("=".repeat(50));

@@ -66,6 +66,42 @@ function getDeploymentData() {
   };
 }
 
+// Load factory deployment data
+function getFactoryDeploymentData() {
+  const factoryDeploymentPath = path.join(
+    __dirname,
+    "../../clearsky-factory-deployment.json"
+  );
+  if (!fs.existsSync(factoryDeploymentPath)) {
+    throw new Error(
+      `Factory deployment file not found: ${factoryDeploymentPath}`
+    );
+  }
+  const deployment = JSON.parse(fs.readFileSync(factoryDeploymentPath, "utf8"));
+
+  // Determine network from environment or default to testnet
+  const network = process.env.NETWORK || "testnet";
+
+  // Factory deployment JSON structure may vary, try to get factory address
+  let factoryAddress;
+  if (deployment.factory && deployment.factory.contractAddress) {
+    factoryAddress = deployment.factory.contractAddress;
+  } else if (deployment[network] && deployment[network].factory) {
+    factoryAddress =
+      deployment[network].factory.address ||
+      deployment[network].factory.contractAddress;
+  } else {
+    throw new Error(
+      `Factory address not found in deployment file for network: ${network}`
+    );
+  }
+
+  return {
+    factoryAddress: factoryAddress,
+    network: network,
+  };
+}
+
 const deploymentData = getDeploymentData();
 const HEDERA_RPC_URL = deploymentData.rpcUrl;
 const CONTRACT_ADDRESS = deploymentData.contractAddress;
@@ -78,7 +114,7 @@ const CARBONMARK_HEADERS = {
 };
 
 const OFFSET_ABI = [
-  "event OffsetRequested(address indexed user, uint256 hbarAmount, string metadata, uint256 requestId)",
+  "event OffsetRequested(address indexed user, uint256 hbarAmount, string metadata, address poolAddress, uint256 requestId)",
 ];
 
 async function getHbarUsdPrice() {
@@ -224,6 +260,7 @@ async function main() {
     user,
     hbarAmount,
     metadata,
+    poolAddress,
     reqId,
     txHash
   ) {
@@ -236,6 +273,7 @@ async function main() {
       console.log(`HBAR Amount: ${hbar} HBAR (${tiny.toString()} tinybars)`);
 
       console.log("Metadata:", metadata);
+      console.log("Pool Address:", poolAddress);
       console.log("Request ID:", reqId.toString());
       console.log("Transaction Hash:", txHash);
       const price = await getHbarUsdPrice();
@@ -288,6 +326,18 @@ async function main() {
             quote.uuid
           );
           console.log("✅ Retirement completed successfully!");
+
+          // Update pool retirement URL if available
+          if (
+            completedOrder &&
+            completedOrder.view_retirement_url &&
+            poolAddress
+          ) {
+            await updatePoolRetirementUrl(
+              poolAddress,
+              completedOrder.view_retirement_url
+            );
+          }
         } catch (err) {
           console.error("Error waiting for order completion:", err);
         }
@@ -299,6 +349,71 @@ async function main() {
       }
     } catch (err) {
       console.error("Error handling offset request:", err);
+    }
+  }
+
+  // Function to update pool retirement URL in factory
+  async function updatePoolRetirementUrl(poolAddress, retirementUrl) {
+    try {
+      console.log(`\n🔗 Updating retirement URL for pool ${poolAddress}...`);
+
+      // Get factory deployment data
+      const factoryData = getFactoryDeploymentData();
+      const factoryAddress = factoryData.factoryAddress;
+
+      // Load factory contract ABI
+      const factoryArtifactPath = path.join(
+        __dirname,
+        "../../artifacts/contracts/ClearSkyFactory.sol/ClearSkyFactory.json"
+      );
+
+      if (!fs.existsSync(factoryArtifactPath)) {
+        throw new Error(
+          "Factory contract artifacts not found. Run 'npx hardhat compile' first."
+        );
+      }
+
+      const factoryArtifact = JSON.parse(
+        fs.readFileSync(factoryArtifactPath, "utf8")
+      );
+      const { abi: factoryABI } = factoryArtifact;
+
+      // Get private key from .env
+      const privateKey = process.env.PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error("Missing PRIVATE_KEY in .env file");
+      }
+
+      // Create wallet and contract instance
+      const wallet = new ethers.Wallet(privateKey, provider);
+      const factoryContract = new ethers.Contract(
+        factoryAddress,
+        factoryABI,
+        wallet
+      );
+
+      console.log(
+        `📝 Calling setPoolRetirementUrl(${poolAddress}, ${retirementUrl})...`
+      );
+
+      // Call setPoolRetirementUrl
+      const tx = await factoryContract.setPoolRetirementUrl(
+        poolAddress,
+        retirementUrl,
+        {
+          gasLimit: 1_000_000,
+        }
+      );
+
+      console.log(`⏳ Transaction submitted: ${tx.hash}`);
+      console.log(`⏳ Waiting for confirmation...`);
+
+      const receipt = await tx.wait();
+      console.log(`✅ Retirement URL updated in block: ${receipt.blockNumber}`);
+      console.log(`🔗 Transaction Hash: ${tx.hash}`);
+    } catch (err) {
+      console.error("❌ Error updating pool retirement URL:", err);
+      // Don't throw - this is not critical for the offset process
     }
   }
 
@@ -316,6 +431,7 @@ async function main() {
         request.user,
         request.hbarAmount,
         request.metadata,
+        request.poolAddress,
         request.reqId,
         request.txHash
       );
@@ -367,13 +483,15 @@ async function main() {
           });
 
           if (decodedLog && decodedLog.name === "OffsetRequested") {
-            const [user, hbarAmount, metadata, reqId] = decodedLog.args;
+            const [user, hbarAmount, metadata, poolAddress, reqId] =
+              decodedLog.args;
 
             // Add to queue instead of processing immediately
             requestQueue.push({
               user,
               hbarAmount,
               metadata,
+              poolAddress,
               reqId,
               txHash: log.transactionHash,
             });

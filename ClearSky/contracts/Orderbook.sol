@@ -35,6 +35,11 @@ interface ISeriesVault {
     function updateBundleOnTransfer(int64 serial, address newOwner) external;
 }
 
+interface IClearSkyFactory {
+    /// Update pool user when order is filled
+    function updatePoolUser(address poolAddress, address newUser) external;
+}
+
 contract OrderBook is Ownable, ReentrancyGuard, Pausable, EIP712 {
     using ECDSA for bytes32;
     using Address for address payable;
@@ -48,6 +53,9 @@ contract OrderBook is Ownable, ReentrancyGuard, Pausable, EIP712 {
     // The Series NFT contract and the vault contract
     IERC721 public immutable seriesToken;
     ISeriesVault public immutable seriesVault;
+
+    // Factory contract for updating pool users
+    IClearSkyFactory public factory;
 
     // Proceeds (pull pattern)
     mapping(address => uint256) public proceeds;
@@ -116,6 +124,11 @@ contract OrderBook is Ownable, ReentrancyGuard, Pausable, EIP712 {
         emit FeeParamsUpdated(_collector, _bps);
     }
 
+    function setFactory(address _factory) external onlyOwner {
+        require(_factory != address(0), "zero factory");
+        factory = IClearSkyFactory(_factory);
+    }
+
     function pause() external onlyOwner {
         _pause();
     }
@@ -163,7 +176,8 @@ contract OrderBook is Ownable, ReentrancyGuard, Pausable, EIP712 {
 
     // Buyer pays native currency here (HBAR) and receives the Series NFT
     function fillOrder(
-        uint256 orderId
+        uint256 orderId,
+        address[] calldata poolAddresses
     ) external payable nonReentrant whenNotPaused {
         Order storage o = orders[orderId];
         require(o.active == true, "inactive"); // Order must be active (true)
@@ -188,6 +202,13 @@ contract OrderBook is Ownable, ReentrancyGuard, Pausable, EIP712 {
         // Update bundle metadata in SeriesVault: set userAddress to buyer and onMarket to false
         // Convert uint256 seriesId to int64 serial
         seriesVault.updateBundleOnTransfer(int64(int256(seriesId)), msg.sender);
+
+        // Update pool users for all pools associated with CSLP tokens in this Series bundle
+        if (address(factory) != address(0) && poolAddresses.length > 0) {
+            for (uint256 i = 0; i < poolAddresses.length; i++) {
+                factory.updatePoolUser(poolAddresses[i], msg.sender);
+            }
+        }
 
         emit OrderFilled(orderId, msg.sender, o.price);
     }

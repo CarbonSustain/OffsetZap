@@ -24,6 +24,9 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
     // FCDR1155 contract for FCDR tokens
     address public fcdr1155Contract; // ERC-1155 FCDR contract
 
+    // Orderbook contract address (for updating pool users on order fill)
+    address public orderbookAddress;
+
     // Mapping from pool address to its CSLP token
     mapping(address => address) public poolCSLPTokens;
 
@@ -374,6 +377,43 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
             "Invalid FCDR1155 contract address"
         );
         fcdr1155Contract = _fcdr1155Contract;
+    }
+
+    /**
+     * @notice Set Orderbook contract address (Owner only)
+     * @dev This allows Orderbook to update pool users when orders are filled
+     */
+    function setOrderbookAddress(address _orderbookAddress) external onlyOwner {
+        require(
+            _orderbookAddress != address(0),
+            "Invalid Orderbook contract address"
+        );
+        orderbookAddress = _orderbookAddress;
+    }
+
+    /**
+     * @notice Update pool user for a pool (called by Orderbook)
+     * @param poolAddress The pool address to update
+     * @param newUser The new pool user address
+     */
+    function updatePoolUser(address poolAddress, address newUser) external {
+        require(msg.sender == orderbookAddress, "ONLY_ORDERBOOK");
+        require(isPool[poolAddress], "NOT_POOL");
+        require(newUser != address(0), "BAD_USER");
+        ClearSkyLiquidityPoolV3(payable(poolAddress)).updatePoolUser(newUser);
+    }
+
+    /**
+     * @notice Set retirement URL for a pool (Owner only)
+     * @param poolAddress The pool address to update
+     * @param newUrl The new retirement URL
+     */
+    function setPoolRetirementUrl(
+        address poolAddress,
+        string calldata newUrl
+    ) external onlyOwner {
+        require(isPool[poolAddress], "NOT_POOL");
+        ClearSkyLiquidityPoolV3(payable(poolAddress)).setRetirementUrl(newUrl);
     }
 
     event MaturationDepositCompleted(

@@ -13,6 +13,7 @@ contract HbarOffset {
         address indexed user,
         uint256 hbarAmount, // in wei (tinybars on Hedera)
         string metadata, // JSON or free-form string
+        address poolAddress, // Pool address associated with this offset
         uint256 requestId
     );
     uint256 public nextRequestId;
@@ -29,16 +30,24 @@ contract HbarOffset {
      *          "beneficiaryName": "Acme Inc."
      *        }
      * @param amount The amount of HBAR (in tinybars) to send for the offset
+     * @param poolAddress The pool address associated with this offset request
      */
     function requestOffset(
         string calldata metadata,
-        uint256 amount
-    ) external payable {
+        uint256 amount,
+        address poolAddress
+    ) external {
         require(amount > 0, "Amount must be greater than 0");
+        require(poolAddress != address(0), "Pool address cannot be zero");
         uint256 requestId = nextRequestId;
         nextRequestId += 1;
-        emit OffsetRequested(msg.sender, amount, metadata, requestId);
-        // HBAR remains in this contract as payment to your org
+        emit OffsetRequested(
+            msg.sender,
+            amount,
+            metadata,
+            poolAddress,
+            requestId
+        );
     }
     /**
      * @notice Sweep HBAR from the contract to a treasury wallet.

@@ -39,7 +39,7 @@ contract ClearSkyLiquidityPoolV3 is
     address public immutable factory;
 
     // Pool user (the user this pool belongs to - for tracking only)
-    address public immutable poolUser;
+    address public poolUser;
 
     // Shared tokens (set by factory)
     address public immutable cslpToken;
@@ -59,6 +59,9 @@ contract ClearSkyLiquidityPoolV3 is
 
     // FCDR status mapping (0=no FCDR, 1=FCDR minted, 2=FCDR burned)
     mapping(address => uint256) public fcdrStatus;
+
+    // Retirement URL (default: empty)
+    string public retirement_url;
 
     // Fees (in basis points: 100 = 1%)
     uint256 public constant FEE_BPS = 30; // 0.3% fee
@@ -109,16 +112,6 @@ contract ClearSkyLiquidityPoolV3 is
         int64 amount,
         int64 newTotalSupply
     );
-    event HTSMintFailed(
-        address indexed token,
-        address indexed to,
-        int64 amount,
-        int32 responseCode
-    );
-
-    // (Removed numerous unused events to reduce bytecode size)
-
-    // Note: TokenCreationFailedEvent removed - using shared tokens from factory
 
     // Custom errors
     error InsufficientHBAR();
@@ -180,19 +173,7 @@ contract ClearSkyLiquidityPoolV3 is
                 )
             );
         }
-
-        // event removed
     }
-
-    // Modifiers
-    modifier onlyPoolUser() {
-        require(msg.sender == poolUser, "ONLY_USER");
-        _;
-    }
-
-    // Note: createLPToken() function removed - using shared cslpToken from factory
-
-    // Note: createFCDRToken() function removed - FCDR token is now created by factory and passed to pool
 
     /**
      * @notice Initialize the pool with initial HBAR liquidity (Owner only)
@@ -382,99 +363,6 @@ contract ClearSkyLiquidityPoolV3 is
             block.timestamp
         );
     }
-
-    /**
-     * @notice Add liquidity with USD-based CSLP calculation
-     * @param usdAmount Amount in USD (2 decimals, e.g., 1000 = $10.00)
-     * @param maturationAmount Maturation amount in USD (2 decimals, e.g., 11000 = $110.00)
-     * @param minLPTokens Minimum LP tokens expected (slippage protection)
-     */
-    function addLiquidityWithUSD(
-        uint256 usdAmount,
-        uint256 maturationAmount,
-        uint256 minLPTokens
-    ) external payable nonReentrant whenNotPaused {
-        require(cslpToken != address(0), "NO_CSLP");
-        require(totalLPTokens > 0, "NOT_INIT");
-        require(msg.value > 0, "NO_HBAR");
-        require(usdAmount > 0, "USD_ZERO");
-        require(maturationAmount > 0, "MAT_ZERO");
-
-        // Calculate exact CSLP tokens based on USD amount
-        uint256 cslpTokensToMint = calculateCSLPFromUSD(
-            usdAmount,
-            maturationAmount
-        );
-        require(cslpTokensToMint >= minLPTokens, "SLIPPAGE");
-
-        // Update pool state
-        totalHBAR += msg.value;
-        totalValue += msg.value;
-
-        // Mint exact CSLP tokens to user using factory
-        emit HTSMintAttempt(
-            cslpToken,
-            msg.sender,
-            int64(uint64(cslpTokensToMint))
-        );
-
-        // Call factory to mint CSLP tokens
-        IClearSkyFactory(factory).mintCSLP(
-            address(this),
-            msg.sender,
-            cslpTokensToMint
-        );
-
-        totalLPTokens += cslpTokensToMint;
-        emit HTSMintSuccess(
-            cslpToken,
-            msg.sender,
-            int64(uint64(cslpTokensToMint)),
-            0
-        ); // newTotalSupply not available from factory
-
-        emit LiquidityAdded(
-            msg.sender,
-            msg.value,
-            cslpTokensToMint,
-            block.timestamp
-        );
-    }
-
-    /**
-     * @notice Remove liquidity from the pool
-     * @param lpTokenAmount Amount of LP tokens to burn
-     * @param minHBAR Minimum HBAR expected (slippage protection)
-     */
-    function removeLiquidity(
-        uint256 lpTokenAmount,
-        uint256 minHBAR
-    ) external nonReentrant whenNotPaused {
-        require(cslpToken != address(0), "NO_CSLP");
-        require(lpTokenAmount > 0, "NO_LP");
-        require(totalLPTokens > 0, "NO_LIQ");
-
-        // Calculate HBAR to return
-        uint256 hbarToReturn = (lpTokenAmount * totalHBAR) / totalLPTokens;
-        require(hbarToReturn >= minHBAR, "SLIPPAGE");
-        require(hbarToReturn <= address(this).balance, "HBAR_LOW");
-
-        // Update pool state
-        totalHBAR -= hbarToReturn;
-        totalLPTokens -= lpTokenAmount;
-        totalValue -= hbarToReturn;
-
-        // Burn CSLP tokens using factory
-        IClearSkyFactory(factory).burnCSLP(address(this), lpTokenAmount);
-
-        // Transfer HBAR to user (events removed)
-        (bool success, ) = payable(msg.sender).call{value: hbarToReturn}("");
-        require(success, "HBAR_XFER");
-
-        // event removed
-    }
-
-    // calculateLPTokens removed (unused)
 
     /**
      * @notice Calculate CSLP tokens for a given USD amount (fixed conversion)
@@ -871,6 +759,27 @@ contract ClearSkyLiquidityPoolV3 is
         require(newTotalLPTokens >= 0, "BAD_LP");
 
         totalLPTokens = newTotalLPTokens;
+        // event removed
+    }
+
+    /**
+     * @notice Update pool user (called by factory)
+     * @param newPoolUser New pool user address
+     */
+    function updatePoolUser(address newPoolUser) external {
+        require(msg.sender == factory, "ONLY_FAC");
+        require(newPoolUser != address(0), "BAD_USER");
+        poolUser = newPoolUser;
+        // event removed
+    }
+
+    /**
+     * @notice Set retirement URL (called by factory)
+     * @param newUrl New retirement URL
+     */
+    function setRetirementUrl(string calldata newUrl) external {
+        require(msg.sender == factory, "ONLY_FAC");
+        retirement_url = newUrl;
         // event removed
     }
 
