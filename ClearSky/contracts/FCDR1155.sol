@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title FCDR1155
-/// @notice Shared ERC-1155 registry for LP-specific FCDR classes. 
+/// @notice Shared ERC-1155 registry for LP-specific FCDR classes.
 ///         Factory is the sole minter/burner for simplicity and safety.
 contract FCDR1155 is ERC1155, Ownable {
     // LP contract => ERC-1155 class id

@@ -260,11 +260,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         );
         // Mark the PREVIOUS pool as matured (the one with CSLP1)
         ClearSkyLiquidityPoolV3(payable(prevPoolAddress)).setMatured(true);
-        // Set FCDR status to 2 (burned) for the previous pool
-        ClearSkyLiquidityPoolV3(payable(prevPoolAddress)).setFCDRStatus(
-            prevPoolAddress,
-            2
-        );
 
         emit MaturationDepositCompleted(
             newPoolAddress,
@@ -285,11 +280,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
             poolAddress,
             hbarAmount,
             ""
-        );
-        // Set FCDR status to 1 (minted) for the pool
-        ClearSkyLiquidityPoolV3(payable(poolAddress)).setFCDRStatus(
-            poolAddress,
-            1
         );
     }
 
@@ -317,11 +307,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
     ) external onlyOwnerOrPool {
         require(fcdr1155Contract != address(0), "NO_FCDR");
         FCDR1155(fcdr1155Contract).burnFrom(from, poolAddress, amount);
-        // Set FCDR status to 2 (burned) for the pool
-        ClearSkyLiquidityPoolV3(payable(poolAddress)).setFCDRStatus(
-            poolAddress,
-            2
-        );
     }
 
     function getAllPools() external view returns (address[] memory) {
@@ -330,20 +315,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
 
     function hasPool(address user) external view returns (bool) {
         return userPools[user] != address(0);
-    }
-
-    /**
-     * @notice Get FCDR status for a pool
-     * @param poolAddress The pool address to check
-     * @return status 0=no FCDR, 1=FCDR minted, 2=FCDR burned
-     */
-    function getPoolFCDRStatus(
-        address poolAddress
-    ) external view returns (uint256) {
-        return
-            ClearSkyLiquidityPoolV3(payable(poolAddress)).getFCDRStatus(
-                poolAddress
-            );
     }
 
     /**

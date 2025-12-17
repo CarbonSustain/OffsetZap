@@ -57,9 +57,6 @@ contract ClearSkyLiquidityPoolV3 is
     // Example: 12.34% is stored as 1234
     uint256 public maturationPct2dp;
 
-    // FCDR status mapping (0=no FCDR, 1=FCDR minted, 2=FCDR burned)
-    mapping(address => uint256) public fcdrStatus;
-
     // Retirement URL (default: empty)
     string public retirement_url;
 
@@ -617,8 +614,6 @@ contract ClearSkyLiquidityPoolV3 is
         // Step 3: Transfer all HBAR to owner
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "HBAR_WD_X");
-
-        // event removed
     }
 
     /**
@@ -699,29 +694,6 @@ contract ClearSkyLiquidityPoolV3 is
      */
     function getMaturationPct2dp() external view returns (uint256 pctScaled) {
         return maturationPct2dp;
-    }
-
-    /**
-     * @notice Set FCDR status for a pool. Callable only by factory.
-     * @param poolAddress The pool address to set status for
-     * @param status 0=no FCDR, 1=FCDR minted, 2=FCDR burned
-     */
-    function setFCDRStatus(address poolAddress, uint256 status) external {
-        require(msg.sender == factory, "ONLY_FAC");
-        require(status <= 2, "BAD_FCDR");
-        fcdrStatus[poolAddress] = status;
-        // event removed
-    }
-
-    /**
-     * @notice Get FCDR status for a pool
-     * @param poolAddress The pool address to check
-     * @return status 0=no FCDR, 1=FCDR minted, 2=FCDR burned
-     */
-    function getFCDRStatus(
-        address poolAddress
-    ) external view returns (uint256) {
-        return fcdrStatus[poolAddress];
     }
 
     /**
