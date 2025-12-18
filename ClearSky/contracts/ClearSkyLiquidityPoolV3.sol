@@ -50,9 +50,6 @@ contract ClearSkyLiquidityPoolV3 is
     uint256 public totalLPTokens;
     uint256 public totalValue; // Total value in HBAR (8 decimals)
 
-    // Maturation status (default: false)
-    bool public isMatured;
-
     // Maturation percentage with 2-decimal precision (store as integer scaled by 100)
     // Example: 12.34% is stored as 1234
     uint256 public maturationPct2dp;
@@ -662,15 +659,6 @@ contract ClearSkyLiquidityPoolV3 is
         totalHBAR += hbarAmount;
         totalValue += hbarAmount;
 
-        // event removed
-    }
-
-    /**
-     * @notice Mark pool as matured/unmatured. Callable only by factory.
-     */
-    function setMatured(bool matured) external {
-        require(msg.sender == factory, "ONLY_FAC");
-        isMatured = matured;
         // event removed
     }
 

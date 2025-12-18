@@ -258,8 +258,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         ClearSkyLiquidityPoolV3(payable(newPoolAddress)).updateTotalLPTokens(
             mintAmount
         );
-        // Mark the PREVIOUS pool as matured (the one with CSLP1)
-        ClearSkyLiquidityPoolV3(payable(prevPoolAddress)).setMatured(true);
 
         emit MaturationDepositCompleted(
             newPoolAddress,
