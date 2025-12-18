@@ -1,16 +1,16 @@
 {
   "testnet": {
-    "timestamp": "2025-12-12T17:17:35.804Z",
-    "deployer": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "timestamp": "2025-12-18T16:52:53.297Z",
+    "deployer": "0xFd6220b000cAE4E538D72A0897C04cbfD2a50Dbc",
     "network": "testnet",
     "chainId": "296",
     "rpcUrl": "https://testnet.hashio.io/api",
-    "deploymentBlock": 28756474,
-    "deploymentTxHash": "0xd4fc26f2b2cdf94b486e3264365e32e446d5059151a1b470c8003bce6becbaaa",
+    "deploymentBlock": 29014932,
+    "deploymentTxHash": "0xde568fa9a751f8f6348f899b4fb662a098ac459bb001b2c70582e5aae862452f",
     "transactionMemo": "HbarOffset contract deployment",
     "hbarOffset": {
-      "address": "0x4cB7d70a5C3d478822F681d70E2E74657Fb241AE",
-      "owner": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA"
+      "address": "0x54ea915edeF03CD7e0F46cE43DdBf59Cb3C7D292",
+      "owner": "0xFd6220b000cAE4E538D72A0897C04cbfD2a50Dbc"
     }
   }
 }

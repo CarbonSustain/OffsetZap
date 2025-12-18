@@ -1,37 +1,37 @@
 {
   "factory": {
     "contractName": "ClearSkyFactory",
-    "contractAddress": "0xA4B5eBa010bc4A4567E3502725Bf7DD05215Cf20",
-    "deployerAddress": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
-    "contractOwner": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "contractAddress": "0xF4D4c9d6Fd0Fe6f9d16A0E23b179134d3662afF7",
+    "deployerAddress": "0xFd6220b000cAE4E538D72A0897C04cbfD2a50Dbc",
+    "contractOwner": "0xFd6220b000cAE4E538D72A0897C04cbfD2a50Dbc",
     "network": "testnet",
     "chainId": "296",
     "rpcUrl": "https://testnet.hashio.io/api",
-    "deployedAt": "2025-12-17T23:09:42.589Z",
-    "deploymentBlock": 28983039,
-    "deploymentTxHash": "0x8b8c2e4422a07e22f90688dd664e713dc27fa18a3f9c6a69648d3b5343ccd97f",
+    "deployedAt": "2025-12-18T16:48:51.624Z",
+    "deploymentBlock": 29014814,
+    "deploymentTxHash": "0xbeda8d41ab14ebe6de91ab8b5379ee0633f4b3929a5fb9e883b74195aba15f00",
     "gasUsedDeployment": "See deployment transaction",
     "version": "1.0.0"
   },
   "fcdr1155Contract": {
-    "address": "0x2991E76D559B32092Fb45885E9Cc8F20Ac747825",
+    "address": "0xe7a401ed999d42a31a89EA78F3775B0b7530e802",
     "name": "FCDR1155",
     "description": "ERC-1155 contract for FCDR tokens",
     "status": "Deployed",
     "metadataUri": "https://api.clearsky.com/metadata/{id}.json"
   },
   "seriesVault": {
-    "address": "0xFd646b58B990e889184a4f307E93c0F9B546936c",
+    "address": "0x7965B9BF85Bd1779Fb00b2922DEF5a3CD8245627",
     "name": "SeriesVault",
     "description": "Standalone Series vault (owned by deployer)",
     "status": "Deployed"
   },
   "orderbook": {
-    "address": "0x7a6c6b2341E0512375c915d89eD47fc5a1c18eF6",
+    "address": "0x7A668F813dfEE929Bb5828a03FA597A47Ead48dE",
     "name": "OrderBook",
     "description": "Orderbook contract for Series NFT trading",
     "status": "Deployed",
-    "feeCollector": "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA",
+    "feeCollector": "0xFd6220b000cAE4E538D72A0897C04cbfD2a50Dbc",
     "feeBps": 250
   },
   "features": [

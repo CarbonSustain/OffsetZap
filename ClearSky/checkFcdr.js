@@ -83,7 +83,7 @@ async function checkFcdr() {
     }
 
     // Address to check balance in
-    const checkAddress = "0x0925BCdF034d7f502053Ceda70CdADe4d6e137eA";
+    const checkAddress = "0xfd6220b000cae4e538d72a0897c04cbfd2a50dbc";
     console.log(
       `🔍 Checking balance for Token ID ${tokenId.toString()} in address: ${checkAddress}`
     );

@@ -85,8 +85,6 @@ contract ClearSkyLiquidityPoolV3 is
     // Tracks if a user has already received CSLP from this pool (enforce 1 CSLP per user per pool)
     mapping(address => bool) public hasReceivedCSLPFromThisPool;
 
-    // Events
-
     event LiquidityAdded(
         address indexed user,
         uint256 hbarAmount,

@@ -68,10 +68,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         emit OwnershipTransferred(address(0), msg.sender);
     }
 
-    // No association helper needed (vault has auto-associations)
-
-    // Series token creation removed; handled externally post-deploy
-
     /**
      * @notice Create a new liquidity pool for a user with pre-created CSLP token
      * @param user The user address that will own this pool
