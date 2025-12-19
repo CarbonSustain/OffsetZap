@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./HederaTokenService.sol";
 import "./HederaResponseCodes.sol";
 import "./KeyHelper.sol";
@@ -31,7 +30,6 @@ interface IClearSkyFactory {
 contract ClearSkyLiquidityPoolV3 is
     Ownable,
     ReentrancyGuard,
-    Pausable,
     HederaTokenService,
     KeyHelper
 {
@@ -171,13 +169,7 @@ contract ClearSkyLiquidityPoolV3 is
      * @notice Initialize the pool with initial HBAR liquidity (Owner only)
      * @dev This function must be called after token creation
      */
-    function initializePool()
-        external
-        payable
-        onlyOwner
-        nonReentrant
-        whenNotPaused
-    {
+    function initializePool() external payable onlyOwner nonReentrant {
         require(cslpToken != address(0), "NO_CSLP");
         require(totalLPTokens == 0, "INITED");
         require(msg.value >= MIN_LIQUIDITY, "LIQ_MIN");
@@ -231,7 +223,7 @@ contract ClearSkyLiquidityPoolV3 is
         uint256 usdAmount,
         uint256 maturationAmount,
         uint256 cslpTokensToMint
-    ) external payable nonReentrant whenNotPaused {
+    ) external payable nonReentrant {
         require(cslpToken != address(0), "NO_CSLP");
         require(msg.value > 0, "NO_HBAR");
         require(usdAmount > 0, "USD_ZERO");
@@ -578,24 +570,10 @@ contract ClearSkyLiquidityPoolV3 is
     }
 
     /**
-     * @notice Emergency pause (Owner only)
-     */
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    /**
-     * @notice Unpause (Owner only)
-     */
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
-    /**
-     * @notice HBAR withdrawal (Owner only, when paused)
+     * @notice HBAR withdrawal (Owner only)
      * @dev Mints FCDR token before transferring HBAR to owner
      */
-    function HBAR_withdrawal() external onlyOwner whenPaused {
+    function HBAR_withdrawal() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "NO_HBAR");
 
@@ -612,9 +590,9 @@ contract ClearSkyLiquidityPoolV3 is
     }
 
     /**
-     * @notice emergency withdrawal (Owner only, when paused)
+     * @notice emergency withdrawal (Owner only)
      */
-    function emergencyWithdraw() external onlyOwner whenPaused {
+    function emergencyWithdraw() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "NO_HBAR");
 

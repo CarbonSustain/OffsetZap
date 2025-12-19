@@ -45,8 +45,8 @@
       ]
     },
     "/Users/rahulankola/Documents/CarbonSustain/CLEARSKY/OffsetZap/ClearSky/contracts/ClearSkyLiquidityPoolV3.sol": {
-      "lastModificationDate": 1766073835122,
-      "contentHash": "e2cea4893432efee5fc0451aeb99c808",
+      "lastModificationDate": 1766163698300,
+      "contentHash": "7382fbe449b06c42ad97f0354421885c",
       "sourceName": "contracts/ClearSkyLiquidityPoolV3.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -76,7 +76,6 @@
       "imports": [
         "@openzeppelin/contracts/access/Ownable.sol",
         "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
-        "@openzeppelin/contracts/utils/Pausable.sol",
         "./HederaTokenService.sol",
         "./HederaResponseCodes.sol",
         "./KeyHelper.sol"
