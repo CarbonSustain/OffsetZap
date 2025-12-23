@@ -79,7 +79,6 @@ contract ClearSkyFactory is HederaTokenService, KeyHelper {
         address cslpToken
     ) external returns (address) {
         require(user != address(0), "BAD_USER");
-        require(userPools[user] == address(0), "POOL_EXISTS");
         require(cslpToken != address(0), "NO_CSLP");
 
         // Deploy new pool contract with pre-created CSLP token
